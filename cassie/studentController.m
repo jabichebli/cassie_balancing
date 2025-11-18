@@ -10,59 +10,97 @@ dq = s(model.n+1 : 2*model.n);
 yaw   = q(4);
 pitch = q(5);
 roll  = q(6);
-R_pelvis = rot_z(yaw) * rot_y(pitch) * rot_x(roll);
+R_pelvis = rot_z(yaw) * rot_y(pitch) * rot_x(roll); % check
 w_pelvis = dq(4:6);
 
-% Desired states
+% Desired trajectory
 p_CoM_des    = params.p_CoM_des;
+v_CoM_des    = params.v_CoM_des;
+a_CoM_des    = params.a_CoM_des;
 R_pelvis_des = params.R_pelvis_des;
+w_pelvis_des = params.w_pelvis_des;
+dw_pelvis_des = params.dw_pelvis_des;
 
-% Calculate errors
-error_p_CoM = p_CoM_des - p_CoM;
-error_v_CoM = -v_CoM;
-error_R_pelvis = 0.5 * vee_map(R_pelvis_des' * R_pelvis - R_pelvis' * R_pelvis_des);
-error_w_pelvis = -w_pelvis;
+% Position error
+error_p_CoM = p_CoM - p_CoM_des;
+error_v_CoM = v_CoM - v_CoM_des;
 
-% Calculate desired wrench
-F_des = params.kp_CoM .* error_p_CoM + params.kd_CoM .* error_v_CoM;
-T_des = params.kp_pelvis .* error_R_pelvis + params.kd_pelvis .* error_w_pelvis;
-W_des = [F_des; T_des];
+% Orientation error
+error_R_pelvis = 0.5 * vee_map(R_pelvis_des' * R_pelvis - R_pelvis' * R_pelvis_des); % check
+error_w_pelvis = w_pelvis - w_pelvis_des;
 
-% Gravity
-F_gravity_total = [0; 0; params.mass * 9.81];
-F_gravity_per_contact = F_gravity_total / 4;
-F_gravity_ff = [F_gravity_per_contact; F_gravity_per_contact; F_gravity_per_contact; F_gravity_per_contact];
+% Desired force
+f_d = -params.kp_CoM .* error_p_CoM - params.kd_CoM .* error_v_CoM ...
+	+ [0; 0; params.mass * 9.81] + params.mass * a_CoM_des;
+
+% Desired torque
+tau_d = -params.kp_pelvis .* error_R_pelvis - params.kd_pelvis .* error_w_pelvis ...
+	+ params.I_pelvis * dw_pelvis_des;
+
+% Desired wrench
+W_des = [f_d; tau_d];
 
 % Get foot positions
 [p1, p2, p3, p4] = computeFootPositions(q, model);
 p_feet = [p1, p2, p3, p4];
 
+num_contacts = 4;
+contact_forces_dim = 3 * num_contacts;
+
 % Grasp matrix
-A = zeros(6, 12);
-for i = 1:4
-	A(1:3, (i-1)*3+1:i*3) = eye(3);
-	A(4:6, (i-1)*3+1:i*3) = hat_map(p_feet(:,i) - p_CoM);
+G_c = zeros(6, contact_forces_dim);
+for i = 1:num_contacts
+	p_foot_relative = p_feet(:,i) - p_CoM;
+	G_c(1:3, (i-1)*3+1:i*3) = eye(3);
+	G_c(4:6, (i-1)*3+1:i*3) = hat_map(p_foot_relative);
 end
 
-% Calculate desired contact forces
-F_corrective = pinv(A) * W_des;
+H = eye(contact_forces_dim);
+g = zeros(contact_forces_dim, 1);
 
-F_total = F_corrective + F_gravity_ff;
+% G_c * f_c = W_des
+A_eq = G_c;
+b_eq = W_des;
+
+% A_ineq * f_c <= b_ineq
+mu = params.mu;
+
+% [fx; fy; fz]
+% -fz <= 0  (unilateral force)
+% fx - mu*fz <= 0 (friction cone)
+% -fx - mu*fz <= 0 (friction cone)
+% fy - mu*fz <= 0 (friction cone)
+% -fy - mu*fz <= 0 (friction cone)
+A_foot = [ 0,  0, -1;
+	1,  0, -mu;
+	-1,  0, -mu;
+	0,  1, -mu;
+	0, -1, -mu];
+
+% Combine for all feet
+A_ineq = kron(eye(num_contacts), A_foot);
+b_ineq = zeros(size(A_ineq, 1), 1);
+
+% Solve the QP
+options = optimoptions('quadprog', 'Display', 'off');
+F_total = quadprog(H, g, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
+
+% if isempty(F_total)
+% 	warning('QP for force distribution was infeasible. Using pseudo-inverse fallback.');
+% 	F_total = pinv(G_c) * W_des;
+% end
 
 % Foot Jacobians
 [J1, J2, J3, J4] = computeFootJacobians(s, model);
+J_feet = {J1(1:3,:), J2(1:3,:), J3(1:3,:), J4(1:3,:)};
 
-J1 = J1(1:3, :);
-J2 = J2(1:3, :);
-J3 = J3(1:3, :);
-J4 = J4(1:3, :);
-
-% Compute torques
 tau_actuated_full = zeros(16, 1);
-tau_actuated_full = tau_actuated_full + J1' * F_total(1:3);
-tau_actuated_full = tau_actuated_full + J2' * F_total(4:6);
-tau_actuated_full = tau_actuated_full + J3' * F_total(7:9);
-tau_actuated_full = tau_actuated_full + J4' * F_total(10:12);
+for i = 1:num_contacts
+	force_idx = (i-1)*3+1 : i*3;
+	f_i = F_total(force_idx);
+	J_i = J_feet{i};
+	tau_actuated_full = tau_actuated_full - J_i' * f_i;
+end
 
 tau_full = zeros(model.n, 1);
 tau_full(5:20) = tau_actuated_full;
