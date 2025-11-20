@@ -55,8 +55,8 @@ for i = 1:num_contacts
 	G_c(4:6, (i-1)*3+1:i*3) = hat_map(p_foot_relative);
 end
 
-H = eye(contact_forces_dim);
-g = zeros(contact_forces_dim, 1);
+% Objective: min ||f_c||^2
+objective_fun = @(f_c) sum(f_c.^2);
 
 % G_c * f_c = W_des
 A_eq = G_c;
@@ -65,7 +65,6 @@ b_eq = W_des;
 % A_ineq * f_c <= b_ineq
 mu = params.mu;
 
-% [fx; fy; fz]
 % -fz <= 0  (unilateral force)
 % fx - mu*fz <= 0 (friction cone)
 % -fx - mu*fz <= 0 (friction cone)
@@ -81,15 +80,16 @@ A_foot = [ 0,  0, -1;
 A_ineq = kron(eye(num_contacts), A_foot);
 b_ineq = zeros(size(A_ineq, 1), 1);
 
-% Solve the QP
-options = optimoptions('quadprog', 'Display', 'off');
-F_total = quadprog(H, g, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
+% Solve the optimization problem
+x0 = zeros(contact_forces_dim, 1);
+options = optimoptions('fmincon', 'Display', 'off', 'Algorithm', 'sqp');
+F_total = fmincon(objective_fun, x0, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
 
 % if isempty(F_total)
 % 	warning('QP for force distribution was infeasible. Using pseudo-inverse fallback.');
 % 	F_total = pinv(G_c) * W_des;
 % end
-
+%
 % Foot Jacobians
 [J1, J2, J3, J4] = computeFootJacobians(s, model);
 J_feet = {J1(1:3,:), J2(1:3,:), J3(1:3,:), J4(1:3,:)};

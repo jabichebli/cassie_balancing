@@ -16,8 +16,8 @@ params.kp_CoM = 20 * [1; 1; 1];
 params.kd_CoM = 5 * [1; 1; 1];
 
 % PD for Orientation
-params.kp_pelvis = 20 * [1; 1; 1];
-params.kd_pelvis = 5 * [1; 1; 1];
+params.kp_pelvis = 0 * [1; 1; 1];
+params.kd_pelvis = 0 * [1; 1; 1];
 
 % Desired trajectory (velocities and accelerations)
 params.v_CoM_des    = [0; 0; 0];
