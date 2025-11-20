@@ -20,6 +20,8 @@ dq = x0(model.n+1 : 2*model.n);
 [r_com, v_com] = computeComPosVel(q, dq, model);
 [p1, p2, p3, p4] = computeFootPositions(q, model);
 
+% disp(compute_COM_pos);
+
 r_com_xy = r_com(1:2);
 v_com_xy = v_com(1:2);
 
@@ -32,11 +34,16 @@ disp(poly_points_y)
 disp(r_com_xy)
 disp(v_com_xy)
 
-params.q1 = solveFootIK(model, [0.0921;0.1305;0.1], [-0.0879;0.1305;0.1], [0.0921;-0.1305;0], [-0.0879;-0.1305;0], q);
-params.t1 = 0.5;
+% ankle_pos_des_1 = [0, 0.1305, 0.1];
 
-params.q2 = solveFootIK(model, [0.0921;0.405;0], [-0.0879;0.405;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0], q);
-params.t2 = 0.3;
+params.stage1 = [[0.0921;0.1305;0.15], [-0.0879;0.1305;0.15], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+% params.stage2 = [[0.0921;0.505;0], [-0.0879;0.505;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+
+% params.q1 = solveFootIK(model, [0.0921;0.1305;0.1], [-0.0879;0.1305;0.1], [0.0921;-0.1305;0], [-0.0879;-0.1305;0], q);
+params.t1 = 4.5;
+
+% params.q2 = solveFootIK(model, [0.0921;0.405;0], [-0.0879;0.405;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0], q);
+params.t2 = 0.4;
 
 % q_diff = params.q1 - q;
 % print(q_diff)
@@ -104,6 +111,7 @@ figure ;
 %% Animation
 stateData = getVisualizerState(x_vec, model);
 vis = CassieVisualizer(t_vec, stateData);
+view([20 0])
 % 
 % x1 = x0;
 % x1(1:20) = params.q1;

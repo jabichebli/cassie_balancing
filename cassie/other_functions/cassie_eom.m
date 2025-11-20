@@ -6,8 +6,6 @@ q = s(1 : model.n);
 dq = s(model.n+1 : 2*model.n);
 
 
-
-
 %% Student Control input
 % get STUDENT Control
 tauStudent = studentControllerStep(t, s, model, params);
