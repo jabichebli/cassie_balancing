@@ -92,16 +92,15 @@ end
 [J1, J2, J3, J4] = computeFootJacobians(s, model);
 J_feet = {J1(1:3,:), J2(1:3,:), J3(1:3,:), J4(1:3,:)};
 
-tau_actuated_full = zeros(16, 1);
+tau_full = zeros(model.n, 1);
 for i = 1:num_contacts
     force_idx = (i-1)*3+1 : i*3;
     f_i = F_total(force_idx);
     J_i = J_feet{i};
-    tau_actuated_full = tau_actuated_full - J_i' * f_i;
+    
+    torque_contribution = J_i' * f_i;
+    tau_full(model.independent_idx) = tau_full(model.independent_idx) + torque_contribution;
 end
-
-tau_full = zeros(model.n, 1);
-tau_full(5:20) = tau_actuated_full;
 
 tau = tau_full(model.actuated_idx);
 
