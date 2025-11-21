@@ -120,6 +120,8 @@ for i = 1:num_contacts
 	tau_dy = tau_dy + J_i_body_linear' * f_i_body;
 end
 
-tau = tau_dy; % negative?
+tau_full = zeros(model.n, 1);
+tau_full(model.independent_idx) = tau_dy; % negative?
+tau = tau_full(model.actuated_idx);
 
 end
