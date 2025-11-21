@@ -12,8 +12,8 @@ params.p_CoM_des    = p_CoM0;
 params.R_pelvis_des = eye(3);
 
 % PD for CoM
-params.kp_CoM = 1 * [1; 1; 1];
-params.kd_CoM = 1 * [1; 1; 1];
+params.kp_CoM = 20 * [1; 1; 1];
+params.kd_CoM = 1000 * [1; 1; 1];
 
 % PD for Orientation
 params.kp_pelvis = 1 * [1; 1; 1];
