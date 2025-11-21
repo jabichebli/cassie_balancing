@@ -14,15 +14,15 @@ persistent traj_idx;
 % print(params)
 
 % --- Initialize FSM on first run ---
-if isempty(robot_state)
+if t == 0
     disp('initialize starting state')
     robot_state = 'stage_1'; % Start by standing on two feet
-    % swing_foot = 'none';
-end
-
-if isempty(state_change)
-    disp('initialize state_change')
     state_change = true;
+    traj_idx = 1;
+
+    fprintf('State: %-10s | state_change: %d | Idx: %3d', ...
+    robot_state, state_change, traj_idx);
+
 end
 
 % --- State vector components ---
@@ -53,12 +53,12 @@ switch robot_state
         if state_change
             state_change = false;
             foot_des = params.stage1;
-            qdes = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), q);
+            qdes = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), [0;0;-0.1], q);
             disp("changing to stage 1")
             disp('differences')
-            traj = generate_trajectory(q, qdes, params.t1, 100);
+            traj = generate_trajectory(q, qdes, params.t1, 10);
             traj_idx = 1;
-
+            % disp(traj)
             disp(norm(q - qdes))
             disp('qdes')
             disp(qdes)
@@ -66,44 +66,45 @@ switch robot_state
         %% Base controller to keep stance for now
 
 
-        kp = 800 ; 
-        kd = 80 ;
-        % x0 = getInitialState(model);
-        % q0 = x0(1:model.n) ;
-        q1 = traj(:,traj_idx);
-        tau = -kp*(q(model.actuated_idx)-q1(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-        error_dist = norm(targ - curr);
-    
-        % Check if within tolerance
-        if error_dist < tolerance
-            traj_idx = traj_idx + 1;
-        end
-        
-        disp()
-        
-        if traj_idx == len(traj)
-            robot_state = 'stage_end';
-            state_change = true;
-            disp(q)
-        end
-
-    case 'stage_2'
-        if state_change
-            state_change = false;
-            foot_des = params.stage2;
-            qdes = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), q);
-            disp("changing to stage 2")
-            disp(norm(q - qdes))
-        end
-        %% Base controller to keep stance for now
-
-
-        kp = 1300 ; 
+        kp = 1800 ; 
         kd = 300 ;
         % x0 = getInitialState(model);
         % q0 = x0(1:model.n) ;
-        q0 = qdes;
-        tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
+        q1 = traj(traj_idx,:).';
+        tau = -kp*(q(model.actuated_idx)-q1(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
+        error_dist = norm(q(model.actuated_idx)-q1(model.actuated_idx));
+    
+        % Check if within tolerance
+        if error_dist < params.tolerance
+            traj_idx = traj_idx + 1;
+            fprintf("Reached tolerance for traj idx %i\n", traj_idx)
+        
+        end
+
+        if traj_idx == length(traj)
+            robot_state = 'stage_end';
+            state_change = true;
+            disp(q)
+            traj_idx = 1;
+        end
+
+    % case 'stage_2'
+    %     if state_change
+    %         state_change = false;
+    %         foot_des = params.stage2;
+    %         qdes = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), q);
+    %         disp("changing to stage 2")
+    %         disp(norm(q - qdes))
+    %     end
+    %     %% Base controller to keep stance for now
+    % 
+    % 
+    %     kp = 1300 ; 
+    %     kd = 300 ;
+    %     % x0 = getInitialState(model);
+    %     % q0 = x0(1:model.n) ;
+    %     q0 = qdes;
+    %     tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
     case 'stage_end'
         if state_change
             state_change = false;

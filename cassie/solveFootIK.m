@@ -1,81 +1,124 @@
-function q_sol = solveFootIK(model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, q0)
-% SOLVEFOOTIK Solves for joint configuration q given target foot positions.
-%
-%   q_sol = solveFootIK(model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, q0)
+function q_sol = solveFootIK(model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, feet_active, com_delta, q0)
+% SOLVEFOOTIK Solves for joint configuration q.
+%   Uses 'fmincon' to STRICTLY enforce active foot positions as constraints,
+%   while minimizing CoM error as the objective.
 %
 %   INPUTS:
-%       model   - Robot model structure. MUST contain 'actuated_idx'.
-%       pX_tgt  - Target position vectors (3x1) for each foot
-%       q0      - Initial guess for q (Nx1 vector).
-%
-%   OUTPUT:
-%       q_sol   - The full joint vector with optimized actuated joints.
+%       model       - Robot model structure.
+%       pX_tgt      - Target position for feet.
+%       feet_active - 4x1 Binary. 1 = STRICT CONSTRAINT. 0 = IGNORED/FREE.
+%       com_delta   - Desired CoM shift.
+%       com_weight  - Importance of CoM in the objective.
+%       q0          - Initial guess.
 
     % 1. Check input arguments
-    if nargin < 6
-        error('Please provide an initial guess q0 (e.g., the robot''s current state).');
+    if nargin < 8
+        error('Please provide all arguments including feet_active and q0.');
     end
-
-    % Verify that actuated_idx exists in the model
     if ~isfield(model, 'actuated_idx')
-        error('The model structure must contain "actuated_idx" to identify controllable joints.');
+        error('The model structure must contain "actuated_idx".');
     end
 
     % 2. Prepare Optimization Variables
-    % We only want to solve for the actuated joints, keeping others fixed.
     act_indices = model.actuated_idx;
-    x0 = q0(act_indices); % Initial guess for ONLY the actuated joints
+    x0 = q0(act_indices); 
+    
+    active_flags = feet_active(:);
+    disp(active_flags)
 
-    % 3. Define Solver Options
-    options = optimoptions('lsqnonlin', ...
-        'Algorithm', 'levenberg-marquardt', ... 
-        'Display', 'off', ...                    
-        'FunctionTolerance', 1e-6, ...           
+    % 4. Calculate Absolute CoM Target
+    dq_dummy = zeros(size(q0));
+    [r_com_0, ~] = computeComPosVel(q0, dq_dummy, model);
+    com_tgt_abs = r_com_0 + com_delta;
+
+    % 5. Define Solver Options for 'fmincon'
+    % 'sqp' is excellent for handling equality constraints in kinematics
+    options = optimoptions('fmincon', ...
+        'Algorithm', 'sqp', ... 
+        'Display', 'off', ...
+        'MaxIterations', 1000, ...
+        'ConstraintTolerance', 1e-4, ... % STRICT enforcement (0.1mm)
         'StepTolerance', 1e-6);
 
-    % 4. Define Bounds (Optional)
-    % If you switch to 'trust-region-reflective', you can set bounds here
-    % based on physical limits of the actuated joints.
-    lb = [];
-    ub = [];
+    % 6. Objective Function (Scalar)
+    % Minimizes CoM Error (weighted)
+    fun = @(x) objectiveFunction(x, act_indices, q0, model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, com_tgt_abs);
 
-    % 5. Create Objective Function
-    % We pass q0 (as a template) and the indices to reconstruct the full q inside
-    objectiveFunc = @(x) costFunction(x, act_indices, q0, model, p1_tgt, p2_tgt, p3_tgt, p4_tgt);
+    % 7. Constraint Function (Non-linear Equalities)
+    % Enforces Foot Position = Target strictly
+    nonlcon = @(x) constraintFunction(x, act_indices, q0, model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, active_flags);
 
-    % 6. Run the Solver
-    % x_sol will contain only the values for the actuated joints
-    [x_sol, resnorm, ~, exitflag] = lsqnonlin(objectiveFunc, x0, lb, ub, options);
+    % 8. Run the Solver
+    % fmincon(fun, x0, A, b, Aeq, beq, lb, ub, nonlcon, options)
+    lb = []; ub = []; 
+    [x_sol, fval, exitflag, output] = fmincon(fun, x0, [], [], [], [], lb, ub, nonlcon, options);
 
-    % --- NEW: Print the final cost ---
-    fprintf('IK Solver Final Cost (Squared Error): %e\n', resnorm);
-    
-    % 7. Reconstruct Full Solution
-    q_sol = q0;                 % Start with the initial/fixed values
-    q_sol(act_indices) = x_sol; % Update the actuated joints with the solution
+    % --- Print Results ---
+    fprintf('IK Solver (fmincon) Objective Cost: %e\n', fval);
+    fprintf('  Max Constraint Violation: %e (Should be close to 0)\n', output.constrviolation);
 
-    % 8. Check for Convergence
+    % 9. Reconstruct Solution
+    q_sol = q0;                 
+    q_sol(act_indices) = x_sol; 
+
+    % 10. Convergence Check
     if exitflag <= 0
-        warning('IK Solver did not converge perfectly. Result might be inaccurate.');
+        warning('IK Solver did not converge perfectly.');
     end
 end
 
-function error_vector = costFunction(x, indices, q_template, model, p1_t, p2_t, p3_t, p4_t)
-    % COSTFUNCTION Helper to reconstruct full q and calculate error.
+function cost = objectiveFunction(x, indices, q_template, model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, com_t)
+    % OBJECTIVE: Minimize Weighted CoM Error
     
-    % A. Reconstruct the full q vector
+    % Reconstruct q
+    q_current = q_template;
+    q_current(indices) = x;
+
+    % Forward Kinematics Feet
+    [p1_curr, p2_curr, p3_curr, p4_curr] = computeFootPositions(q_current, model);
+
+    
+    % For every ACTIVE foot, append its XYZ error to ceq.
+    % The solver must drive these values to 0.
+    diff1 = p1_curr - p1_tgt;
+    diff2 = p2_curr - p2_tgt;
+    diff3 = p3_curr - p3_tgt;
+    diff4 = p4_curr - p4_tgt;
+    
+    % Forward Kinematics CoM
+    dq_dummy = zeros(size(q_current));
+    [r_com_curr, ~] = computeComPosVel(q_current, dq_dummy, model);
+    
+    % Weighted Error Vector
+    diff_com = (r_com_curr - com_t); 
+    err_vec = [diff1; diff2; diff3; diff4; diff_com];
+    % Return Scalar Sum of Squares
+    cost = sum(err_vec.^2);
+    
+    % (Optional) Regularization to keep unused joints steady:
+    % cost = cost + 0.001 * sum((x - q_template(indices)).^2);
+end
+
+function [c, ceq] = constraintFunction(x, indices, q_template, model, p1_t, p2_t, p3_t, p4_t, active)
+    % CONSTRAINTS: Enforce Foot Positions
+    
+    % Reconstruct q
     q_current = q_template;
     q_current(indices) = x;
     
-    % B. Run Forward Kinematics
-    [p1_curr, p2_curr, p3_curr, p4_curr] = computeFootPositions(q_current, model);
+    % Forward Kinematics Feet
+    [p1, p2, p3, p4] = computeFootPositions(q_current, model);
     
-    % C. Calculate Error
-    diff1 = p1_curr - p1_t;
-    diff2 = p2_curr - p2_t;
-    diff3 = p3_curr - p3_t;
-    diff4 = p4_curr - p4_t;
+    % Inequality Constraints (None)
+    c = [];
     
-    % D. Stack errors
-    error_vector = [diff1; diff2; diff3; diff4];
+    % Equality Constraints (Strict)
+    ceq = [];
+    
+    % For every ACTIVE foot, append its XYZ error to ceq.
+    % The solver must drive these values to 0.
+    if active(1), ceq = [ceq; p1 - p1_t]; end
+    if active(2), ceq = [ceq; p2 - p2_t]; end
+    if active(3), ceq = [ceq; p3 - p3_t]; end
+    if active(4), ceq = [ceq; p4 - p4_t]; end
 end

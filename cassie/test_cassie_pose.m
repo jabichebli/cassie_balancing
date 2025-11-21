@@ -37,11 +37,24 @@ disp(v_com_xy)
 % ankle_pos_des_1 = [0, 0.1305, 0.1];
 
 % foot_des = [[0.0921+0.0900;0.1305;0.1], [-0.0879+0.0900;0.1305;0.1], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
-foot_des = [[0.0921;0.1305;0.02], [-0.0879;0.1305;0.02], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
-q1 = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), q);
+foot_des = [[0.0921;0.1305;0.1], [-0.0879;0.1305;0.1], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+% foot_des = [[0.0921;0.1305;0], [-0.0879;0.1305;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
 
-disp(q)
-disp(q1)
+q1 = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), [1;1;0;0], [0;0;-0.05], q);
+
+% disp(q)
+% disp(q1)
+
+disp('com delta')
+
+disp(r_com)
+disp(v_com)
+
+[r_com1, v_com1] = computeComPosVel(q1, dq, model);
+disp(r_com1)
+disp(v_com1)
+
+disp(r_com1 - r_com)
 % params.stage2 = [[0.0921;0.505;0], [-0.0879;0.505;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
 % 
 % params.q1 = solveFootIK(model, [0.0921;0.1305;0.1], [-0.0879;0.1305;0.1], [0.0921;-0.1305;0], [-0.0879;-0.1305;0], q);
@@ -119,6 +132,9 @@ disp(q1)
 % 
 x1 = x0;
 x1(1:20) = q1;
+
+
+
 stateData = getVisualizerState(x1', model);
 vis = CassieVisualizer([0], stateData);
 view([120 0])

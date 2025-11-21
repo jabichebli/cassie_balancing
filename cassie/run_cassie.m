@@ -45,6 +45,9 @@ params.t1 = 4.5;
 % params.q2 = solveFootIK(model, [0.0921;0.405;0], [-0.0879;0.405;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0], q);
 params.t2 = 0.4;
 
+
+params.tolerance = 0.1;
+
 % q_diff = params.q1 - q;
 % print(q_diff)
 
