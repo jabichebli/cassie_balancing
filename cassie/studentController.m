@@ -3,13 +3,6 @@ function tau = studentController(t, s, model, params)
 q = s(1 : model.n);
 dq = s(model.n+1 : 2*model.n);
 
-% kp = 1800 ; 
-% kd = 300 ;
-% x0 = getInitialState(model);
-% q0 = x0(1:model.n) ;
-% tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-
-
 % Get current CoM position and velocity
 [p_CoM, v_CoM] = computeComPosVel(q, dq, model);
 
@@ -59,7 +52,6 @@ for i = 1:num_contacts
 end
 
 % Set up QP problem
-% Equality constraint: G_c * F_total = W_des
 A_eq = G_c;
 b_eq = W_des;
 
@@ -86,41 +78,20 @@ if exitflag ~= 1
     F_total = pinv(G_c) * W_des;
 end
 
-% computeFootJacobians returns Jacobians in the local body frame of the foot.
+% Jacobians
 [J1f_b, J1b_b, J2f_b, J2b_b] = computeFootJacobians(s, model);
 J_feet_body_linear = {J1f_b(4:6,:), J1b_b(4:6,:), J2f_b(4:6,:), J2b_b(4:6,:)};
-% 
-% % Get world-frame transforms to extract rotation matrices.
-% X_w_f1 = bodypos(model, model.idx.foot1, q);
-% X_w_f2 = bodypos(model, model.idx.foot2, q);
-% R_w_f1 = X_w_f1(1:3, 1:3);
-% R_w_f2 = X_w_f2(1:3, 1:3);
 
-% Calculate the total torque contribution for independent coordinates
+% Torque
 tau_dy = zeros(length(model.independent_idx), 1);
 for i = 1:num_contacts
-    % World-frame force for this contact
     f_i_world = F_total((i-1)*3+1 : i*3);
-
-    % Body-frame Jacobian for this contact
 	J_i_body_linear = J_feet_body_linear{i};
-
-    % Select the correct rotation matrix for this foot
-    % if i <= 2
-    %     R_w_b = R_w_f1;
-    % else
-    %     R_w_b = R_w_f2;
-    % end
-    % 
-    % Transform world-frame force into the local body-frame of the foot
-    % f_i_body = R_w_b' * f_i_world;
-
-    % Calculate torque
 	tau_dy = tau_dy + J_i_body_linear' * f_i_world;
 end
 
 tau_full = zeros(model.n, 1);
-tau_full(model.independent_idx) = -tau_dy; % negative?
+tau_full(model.independent_idx) = -tau_dy;
 tau = tau_full(model.actuated_idx);
 
 end
