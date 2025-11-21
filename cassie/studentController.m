@@ -31,11 +31,11 @@ error_w_pelvis = w_pelvis - w_pelvis_des;
 
 % Desired force
 f_d = -params.kp_CoM .* error_p_CoM - params.kd_CoM .* error_v_CoM ...
-	+ [0; 0; params.mass * 9.81] + params.mass * a_CoM_des;
+    + [0; 0; params.mass * 9.81] + params.mass * a_CoM_des;
 
 % Desired torque
 tau_d = -params.kp_pelvis .* error_R_pelvis - params.kd_pelvis .* error_w_pelvis ...
-	+ params.I_pelvis * dw_pelvis_des;
+    + params.I_pelvis * dw_pelvis_des;
 
 % Desired wrench
 W_des = [f_d; tau_d];
@@ -44,19 +44,15 @@ W_des = [f_d; tau_d];
 [p1, p2, p3, p4] = computeFootPositions(q, model);
 p_feet = [p1, p2, p3, p4];
 
+% Grasp matrix
 num_contacts = 4;
 contact_forces_dim = 3 * num_contacts;
-
-% Grasp matrix
 G_c = zeros(6, contact_forces_dim);
 for i = 1:num_contacts
-	p_foot_relative = p_feet(:,i) - p_CoM;
-	G_c(1:3, (i-1)*3+1:i*3) = eye(3);
-	G_c(4:6, (i-1)*3+1:i*3) = hat_map(p_foot_relative);
+    p_foot_relative = p_feet(:,i) - p_CoM;
+    G_c(1:3, (i-1)*3+1:i*3) = eye(3);
+    G_c(4:6, (i-1)*3+1:i*3) = hat_map(p_foot_relative);
 end
-
-% Objective: min ||f_c||^2
-objective_fun = @(f_c) sum(f_c.^2);
 
 % G_c * f_c = W_des
 A_eq = G_c;
@@ -71,35 +67,37 @@ mu = params.mu;
 % fy - mu*fz <= 0 (friction cone)
 % -fy - mu*fz <= 0 (friction cone)
 A_foot = [ 0,  0, -1;
-	1,  0, -mu;
-	-1,  0, -mu;
-	0,  1, -mu;
-	0, -1, -mu];
+    1,  0, -mu;
+    -1,  0, -mu;
+    0,  1, -mu;
+    0, -1, -mu];
 
 % Combine for all feet
 A_ineq = kron(eye(num_contacts), A_foot);
 b_ineq = zeros(size(A_ineq, 1), 1);
 
 % Solve the optimization problem
-x0 = zeros(contact_forces_dim, 1);
-options = optimoptions('fmincon', 'Display', 'off', 'Algorithm', 'sqp');
-F_total = fmincon(objective_fun, x0, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
+H = 2 * eye(contact_forces_dim);
+f = zeros(contact_forces_dim, 1);
+options = optimoptions('quadprog', 'Display', 'none');
 
-% if isempty(F_total)
-% 	warning('QP for force distribution was infeasible. Using pseudo-inverse fallback.');
-% 	F_total = pinv(G_c) * W_des;
-% end
-%
+[F_total, ~, exitflag] = quadprog(H, f, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
+
+if exitflag ~= 1
+    warning('QP for force distribution: exitflag %d. Infeasible or had other issues. Using pseudo-inverse fallback.', exitflag);
+    F_total = pinv(G_c) * W_des;
+end
+
 % Foot Jacobians
 [J1, J2, J3, J4] = computeFootJacobians(s, model);
 J_feet = {J1(1:3,:), J2(1:3,:), J3(1:3,:), J4(1:3,:)};
 
 tau_actuated_full = zeros(16, 1);
 for i = 1:num_contacts
-	force_idx = (i-1)*3+1 : i*3;
-	f_i = F_total(force_idx);
-	J_i = J_feet{i};
-	tau_actuated_full = tau_actuated_full - J_i' * f_i;
+    force_idx = (i-1)*3+1 : i*3;
+    f_i = F_total(force_idx);
+    J_i = J_feet{i};
+    tau_actuated_full = tau_actuated_full - J_i' * f_i;
 end
 
 tau_full = zeros(model.n, 1);
