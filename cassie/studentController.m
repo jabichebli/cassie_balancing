@@ -1,101 +1,91 @@
-function tau = studentController(t, s, model, params)
+function out = studentController(t, s, model, params)
+% Modify this code to calculate the joint torques
+% t - time
+% s - state of the robot
+% model - struct containing robot properties
+% params - user defined parameters in studentParams.m
+% tau - 10x1 vector of joint torques
 
+% State vector components ID
 q = s(1 : model.n);
 dq = s(model.n+1 : 2*model.n);
 
-% kp = 1800 ; 
+%% [Control #1] zero control
+% tau = zeros(10,1);
+
+%% [Control #2] High Gain Joint PD control on all actuated joints
+% kp = 1800 ;
 % kd = 300 ;
 % x0 = getInitialState(model);
 % q0 = x0(1:model.n) ;
-% tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-% disp(tau');
+% out = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
 
-% --- Wrench and Force Calculation ---
-[p_CoM, ~] = computeComPosVel(q, dq, model);
-W_des = [0; 0; params.mass * 9.81; 0; 0; 0];
+%% Force Control
 
-[p1, p2, p3, p4] = computeFootPositions(q, model);
-p_feet = {p1, p2, p3, p4};
-num_contacts = 4;
-contact_forces_dim = 3 * num_contacts;
-G_c = zeros(6, contact_forces_dim);
-for i = 1:num_contacts
-	p_foot_relative = p_feet{i} - p_CoM;
-	G_c(1:3, (i-1)*3+1:i*3) = eye(3);
-	G_c(4:6, (i-1)*3+1:i*3) = hat_map(p_foot_relative);
-end
-F_total = pinv(G_c) * W_des;
+%   TODO:
+% check if contact frames are equal to world frames
 
+% desired wrench CHANGE TO COM
+f_des_W = -params.Kp_f*(q(1:3) - params.r_com_des_W) - params.Kd_f*(dq(1:3) - params.dr_com_des_W) + params.m*params.g*[0; 0; 1]; % + params.m * ddr_com_d_W;
+tau_des_W = -params.Kp_tau*(q(4:6) - params.rot_des) - params.Kd_tau*(dq(4:6) - params.drot_des); % + params.I * ddrot_des
 
-% --- Torque Calculation (Corrected based on all findings) ---
-[J1f_b, J1b_b, J2f_b, J2b_b] = computeFootJacobians(s, model);
-J_feet_body_linear = {J1f_b(1:3,:), J1b_b(1:3,:), J2f_b(1:3,:), J2b_b(1:3,:)};
+F_des_W = [f_des_W; tau_des_W]; % desired wrench in world frame
 
-% Get world-frame transforms to extract rotation matrices.
-% Assuming bodypos returns a 4x4 homogeneous transform.
-X_w_f1 = bodypos(model, model.idx.foot1, q);
-X_w_f2 = bodypos(model, model.idx.foot2, q);
-R_w_f1 = X_w_f1(1:3, 1:3);
-R_w_f2 = X_w_f2(1:3, 1:3);
+% Grasp Matrix
+[p_lf_W, p_lb_W, p_rf_W, p_rb_W] = computeFootPositions(q, model); % contact positions in World frame (lf: left front, rb: right back)
+
+[r_com_W, v_com_W] = computeComPosVel(q, dq, model); % position and velocity of COM in world frame
+
+r_lf_W = p_lf_W - r_com_W; % distance between COM and each contact position in world frame
+r_lb_W = p_lb_W - r_com_W;
+r_rf_W = p_rf_W - r_com_W;
+r_rb_W = p_rb_W - r_com_W;
 
 
-% 1. Calculate the total 16x1 torque contribution for independent coordinates
-tau_dy = zeros(length(model.independent_idx), 1);
-for i = 1:num_contacts
-	% World-frame force for this contact
-    f_i_world = F_total((i-1)*3+1 : i*3);
+G = [eye(3), eye(3), eye(3), eye(3);
+     hat_map(r_lf_W), hat_map(r_lb_W), hat_map(r_rf_W), hat_map(r_rb_W)];
 
-    % Body-frame Jacobian for this contact
-	J_i_body_linear = J_feet_body_linear{i};
+% Optimization for Contact Forces 
 
-    % Select the correct rotation matrix to transform the force into the Jacobian's frame
-    if i <= 2 % Contacts 1 & 2 are on foot 1
-        R_w_b = R_w_f1;
-    else % Contacts 3 & 4 are on foot 2
-        R_w_b = R_w_f2;
+
+
+fminconoptions = optimoptions('fmincon', ...
+    'Display', 'iter', ...
+    'Algorithm', 'interior-point', ...
+    'MaxFunctionEvaluations', 1e5, ...
+    'MaxIterations', 5000);
+
+[f_contacts_W, ~] = fmincon(@cost, params.f_contacts_0_W, [], [], G, F_des_W, [], [], @nonlcon, fminconoptions);
+
+    function J = cost(X)
+
+        J = norm(X)^2;
+
     end
 
-    % Transform world-frame force into the local body-frame of the foot
-    % R_w_b' is the inverse rotation (from world to body)
-    f_i_body = R_w_b' * f_i_world;
+    function [c, ceq] = nonlcon(X)
 
-    % Now that J and f are in the same frame, calculate torque contribution
-	tau_dy = tau_dy + J_i_body_linear' * f_i_body;
-end
+        c_uni = [-X(3:3:end)];
 
-% 2. Place the independent torques into the full torque vector, applying the
-%    negative sign convention from the user's notes.
-tau_full = zeros(model.n, 1);
-tau_full(model.independent_idx) = -tau_dy;
+        c_friction = zeros(4, 1);
+        for i = 1:height(c_friction)
+            c_friction(i) = abs(norm(X(i*3-2:i*3-1))/X(3*i)) - 0.8;
+        end
 
-% 3. Extract torques for actuated joints
-tau = tau_full(model.actuated_idx);
+        c = [c_uni; c_friction];
+        ceq = [];
 
-disp(tau');
+    end
+
+params.f_contacts_0_W = f_contacts_W;
+
+% Compute Joint Torques
+
+[J_lf, J_lb, J_rf, J_rb] = computeFootJacobians(s,model);
 
 
-% % --- DEBUG PRINTING AT T=0 ---
-% if t == 0
-% 	disp('--- DEBUG: Full Torque Calculation Pipeline (t=0) ---');
-% 
-% 	fprintf('Robot Mass: %.2f kg\n', params.mass);
-% 	disp('1. Desired Wrench (W_des):');
-% 	disp(W_des');
-% 
-% 	disp('2. Calculated Contact Forces (F_total):');
-% 	F_total_reshaped = reshape(F_total, 3, 4)' ;
-% 	disp('      fx        fy        fz');
-% 	disp(F_total_reshaped);
-% 	sum_F = sum(F_total_reshaped, 1);
-% 	fprintf('Sum of Forces: fx=%.2f, fy=%.2f, fz=%.2f\n', sum_F(1), sum_F(2), sum_F(3));
-% 
-% 	disp('3. Independent Torques (tau_dy, before sign flip):');
-% 	disp(tau_dy');
-% 
-% 	disp('4. Final Actuated Torques (tau):');
-% 	disp(tau');
-% 
-% 	disp('----------------------------------------------------');
-% end
+temp = -J_lf'*f_contacts_W(1:3) - J_lb'*f_contacts_W(4:6) - J_rf'*f_contacts_W(7:9) - J_rb'*f_contacts_W(10:12);
+out = temp(model.actuated_idx);
 
 end
+
