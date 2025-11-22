@@ -55,15 +55,15 @@ end
 A_eq = G_c;
 b_eq = W_des;
 
-% % Inequality constraints for friction cones (A_ineq * F <= b_ineq)
-% mu = params.mu; % Friction coefficient
-% A_foot = [ 0,  0, -1;  % -fz <= 0 (unilateral force)
-%            1,  0, -mu; % fx - mu*fz <= 0
-%           -1,  0, -mu; % -fx - mu*fz <= 0
-%            0,  1, -mu; % fy - mu*fz <= 0
-%            0, -1, -mu];% -fy - mu*fz <= 0
-% A_ineq = kron(eye(num_contacts), A_foot);
-% b_ineq = zeros(size(A_ineq, 1), 1);
+% Inequality constraints for friction cones (A_ineq * F <= b_ineq)
+mu = params.mu; % Friction coefficient
+A_foot = [ 0,  0, -1;  % -fz <= 0 (unilateral force)
+           1,  0, -mu; % fx - mu*fz <= 0
+          -1,  0, -mu; % -fx - mu*fz <= 0
+           0,  1, -mu; % fy - mu*fz <= 0
+           0, -1, -mu];% -fy - mu*fz <= 0
+A_ineq = kron(eye(num_contacts), A_foot);
+b_ineq = zeros(size(A_ineq, 1), 1);
 
 % Objective function: Minimize the squared sum of forces
 H = 2 * eye(contact_forces_dim);
@@ -71,11 +71,11 @@ f_obj = zeros(contact_forces_dim, 1);
 options = optimoptions('quadprog', 'Display', 'none');
 
 % Solve QP
-[F_total, ~, exitflag] = quadprog(H, f_obj, [], [], A_eq, b_eq, [], [], [], options);
+[F_total, ~, exitflag] = quadprog(H, f_obj, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
 
 if exitflag ~= 1
     warning('QP for force distribution: exitflag %d. Infeasible. Using pseudo-inverse fallback.', exitflag);
-    F_total = pinv(G_c) * W_des;
+    % F_total = pinv(G_c) * W_des;
 end
 
 % Jacobians
