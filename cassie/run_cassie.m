@@ -15,7 +15,7 @@ model = load('cassie_model.mat') ;
 params = studentParams(model);
 
 % ODE options
-time_inter = [0 5] ;
+time_inter = [0 0.05] ;
 odeopts = odeset('Events', @falldetect);
 externalForce_fun = @ExternalForce ;
 
