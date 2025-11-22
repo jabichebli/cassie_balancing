@@ -74,7 +74,7 @@ options = optimoptions('quadprog', 'Display', 'none');
 
 if exitflag ~= 1
     warning('QP for force distribution: exitflag %d. Infeasible.', exitflag);
-    % F_total = pinv(G_c) * W_des;
+    F_total = pinv(G_c) * W_des;
 end
 
 % Jacobians
