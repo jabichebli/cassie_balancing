@@ -20,19 +20,20 @@ dq = x0(model.n+1 : 2*model.n);
 [r_com, v_com] = computeComPosVel(q, dq, model);
 [p1, p2, p3, p4] = computeFootPositions(q, model);
 
+
 % disp(compute_COM_pos);
 
-r_com_xy = r_com(1:2);
-v_com_xy = v_com(1:2);
-
-poly_points_x = [p1(1), p2(1), p3(1), p4(1)];
-poly_points_y = [p1(2), p2(2), p3(2), p4(2)];
-
-disp('poly points')
-disp(poly_points_x)
-disp(poly_points_y)
-disp(r_com_xy)
-disp(v_com_xy)
+% r_com_xy = r_com(1:2);
+% v_com_xy = v_com(1:2);
+% 
+% poly_points_x = [p1(1), p2(1), p3(1), p4(1)];
+% poly_points_y = [p1(2), p2(2), p3(2), p4(2)];
+% 
+% disp('poly points')
+% disp(poly_points_x)
+% disp(poly_points_y)
+% disp(r_com_xy)
+% disp(v_com_xy)
 
 % ankle_pos_des_1 = [0, 0.1305, 0.1];
 
@@ -40,10 +41,18 @@ disp(v_com_xy)
 % foot_des = [[0.0921;0.1305;0], [-0.0879;0.1305;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
 % foot_des = [[0.0921;0.1305;0.1], [-0.0879;0.1305;0.1], [0.0921;-0.1305;0.05], [-0.0879;-0.1305;0.05]];
 
-foot_dx = -0.1;
-foot_dy = 0.2;
+% foot_dx = -0.1;
+% foot_dy = 0.2;
 
-foot_des = [[0.0921+foot_dx;0.1305+foot_dy;0.10], [-0.0879+foot_dx;0.1305+foot_dy;0.10], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+% foot_des = [[0.0921+foot_dx;0.1305+foot_dy;0.10], [-0.0879+foot_dx;0.1305+foot_dy;0.10], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+persist_params.foot_dx = 0;
+persist_params.foot_dy = 0.2;
+foot_des = [[0.0921;0.1305;0],...
+                                         [-0.0879;0.1305;0],...
+                                         [0.0921-persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.05],...
+                                         [-0.0879-persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.05]];
+
+
 
 q1 = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), [1;1;0;0], q);
 

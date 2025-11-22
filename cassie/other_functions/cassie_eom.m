@@ -8,7 +8,7 @@ dq = s(model.n+1 : 2*model.n);
 
 %% Student Control input
 % get STUDENT Control
-tauStudent = studentControllerStep(t, s, model, params);
+tauStudent = studentController(t, s, model, params);
 
 % adding torque saturation
 tauMax = repmat([25*4.5; 25*4.5; 16*12.2; 16*12.2; 50*0.9], 2, 1);

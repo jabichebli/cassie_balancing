@@ -12,16 +12,23 @@ persistent traj;
 persistent traj_idx;
 
 persistent last_debug_bucket;
+persistent persist_params;
+persistent direction;
+
+persistent last_t;
 
 % print(params)
 
 debug_interval = 0.05;
 
+
 % --- Initialize FSM on first run ---
 if isempty(robot_state)
-    disp(t)
     disp('initialize starting state')
-    robot_state = 'stage_1'; % Start by standing on two feet
+    last_t = 0;
+    persist_params = studentParams(model);
+    
+    robot_state = 'stage_0'; % Start by standing on two feet
     state_change = true;
     traj_idx = 1;
     last_debug_bucket = -1;
@@ -55,11 +62,67 @@ dq = s(model.n+1 : 2*model.n);
 % disp(t)
 
 switch robot_state
+    case 'stage_0'
+        if state_change
+            state_change = false;
+        end
+        kp = 1800 ; 
+        kd = 300 ;
+
+        x0 = getInitialState(model);
+        q0 = x0(1:model.n);
+        tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
+
+        a_com = [0;0;0];
+        if t>0.2
+            [r_com, v_com] = computeComPosVel(q, dq, model);
+            a_com = v_com/t;
+        end
+
+
+        if norm(a_com(1:2)) > 0.01
+        % if true
+            state_change = true;
+            robot_state = 'stage_1';
+            if a_com(1) > 0
+                direction = 'left';
+                persist_params.stage1 = [[0.0921+persist_params.foot_dx;0.1305+persist_params.foot_dy;0.05],...
+                                         [-0.0879+persist_params.foot_dx;0.1305+persist_params.foot_dy;0.05],...
+                                         [0.0921;-0.1305;0],...
+                                         [-0.0879;-0.1305;0]];
+                persist_params.stage2 = [[0.0921+persist_params.foot_dx*2;0.1305+persist_params.foot_dy*2;0],...
+                                        [-0.0879+persist_params.foot_dx*2;0.1305+persist_params.foot_dy*2;0],...
+                                        [0.0921;-0.1305;0],...
+                                        [-0.0879;-0.1305;0]];
+                persist_params.mask = [0;0;1;1];
+                persist_params.kp_left = 300;
+                persist_params.kd_left = 30;
+                persist_params.kp_right = 1300;
+                persist_params.kd_right = 300;
+        
+            else
+                direction = 'right';
+                persist_params.stage1 = [[0.0921;0.1305;0],...
+                                         [-0.0879;0.1305;0],...
+                                         [0.0921+persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.05],...
+                                         [-0.0879+persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.05]];
+                persist_params.stage2 = [[0.0921;0.1305;0],...
+                                        [-0.0879;0.1305;0],...
+                                        [0.0921+persist_params.foot_dx*2;-0.1305-persist_params.foot_dy*2;0],...
+                                        [-0.0879+persist_params.foot_dx*2;-0.1305-persist_params.foot_dy*2;0]];
+                persist_params.mask = [1;1;0;0];
+                persist_params.kp_left = 1300;
+                persist_params.kd_left = 300;
+                persist_params.kp_right = 300;
+                persist_params.kd_right = 30;
+            end
+        end
+
     case 'stage_1'
         if state_change
             state_change = false;
-            foot_des = params.stage1;
-            qdes = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), [0;0;1;1], q);
+            foot_des = persist_params.stage1;
+            qdes = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), persist_params.mask, q);
             disp("changing to stage 1")
             % disp('differences')
             traj = generate_trajectory(q(model.actuated_idx), qdes(model.actuated_idx), 2);
@@ -72,92 +135,14 @@ switch robot_state
         %% Base controller to keep stance for now
 
         % left leg
-        kp_arr = ones([5,2]);
-        kp_arr(1:4,1) = kp_arr(1:4,1) .* 500;
-        kp_arr(5,1) = kp_arr(5,1) .* 500;
-
-        % right leg
-        kp_arr(:,2) = kp_arr(:,2) * 1800;
-        kp_one = [kp_arr(:,1) ; kp_arr(:,2)];
-
-        % kp = 1800 ; 
-        kd = 100 ;
-        q1 = traj(traj_idx,:).';
-        % q1 = qdes(model.actuated_idx);
-        % tau = -kp_one.*(q(model.actuated_idx)-q1(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-        tau = -kp_one.*(q(model.actuated_idx)-q1) - kd*dq(model.actuated_idx) ;
-
-        error_dist = norm((q(model.actuated_idx)-q1))^2;
-    
-        current_bucket = floor(t / debug_interval);
-    
-        % If we have moved to a new bucket, print and update
-        if current_bucket > last_debug_bucket
-            fprintf('[DEBUG t=%.2f] Error Distance: %d | Traj Idx: %i\n', t, error_dist, traj_idx);
-            last_debug_bucket = current_bucket;
-        end
-
-        % Check if within tolerance
-        if error_dist < params.tolerance
-            fprintf("Reached tolerance for traj idx %i at %d\n", traj_idx, t)
-            traj_idx = traj_idx + 1;
-            if traj_idx > height(traj)
-                robot_state = 'stage_2';
-                state_change = true;
-                disp(q)
-                % traj_idx = 1;
-            end
-        end
-        
-        % if traj_idx == length(traj)
-        %     robot_state = 'stage_end';
-        %     state_change = true;
-        %     disp(q)
-        %     traj_idx = 1;
-        % end
-
-
-        
-
-    case 'stage_2'
-        if state_change
-            state_change = false;
-            foot_des = params.stage2;
-            qdes = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), [0;0;1;1], q);
-            disp("changing to stage 2")
-            % disp('differences')
-            traj = generate_trajectory(q(model.actuated_idx), qdes(model.actuated_idx), 2);
-            traj_idx = 1;
-            % % disp(traj)
-            % disp(norm(q - qdes))
-            % disp('qdes')
-            % disp(qdes)
-        end
-        %% Base controller to keep stance for now
-        kp_left = 300;
-        kd_left = 30;
-
-        kp_right = 1300;
-        kd_right = 300;
-        
+        kp_left = persist_params.kp_left;
+        kd_left = persist_params.kd_left;
+        kp_right = persist_params.kp_right;
+        kd_right = persist_params.kd_right;
         % left leg
         kp_arr = [kp_left; kp_right; kp_left; kp_right; kp_left; kp_right; kp_left; kp_right; kp_left*0.5; kp_right*0.5];
-
         kd_arr = [kd_left; kd_right; kd_left; kd_right; kd_left; kd_right; kd_left; kd_right; kd_left*0.5; kd_right*0.5];
 
-        % kp_arr = ones([5,2]);
-        % kp_arr(1:4,1) = kp_arr(1:4,1) .* 100;
-        % kp_arr(5,1) = kp_arr(5,1) .* 10;
-        % 
-        % % right leg
-        % kp_arr(:,2) = kp_arr(:,2) .* 1800;
-        % kp_one = [kp_arr(:,1) ; kp_arr(:,2)];
-        % 
-        % % kp = 1800 ; 
-        % kd = 5 ;
-        % kd_arr = ones([10,1]);
-        % kd_arr(6:10) = kd_arr(6:10).*300;
-        % kd_arr()
         q1 = traj(traj_idx,:).';
         % q1 = qdes(model.actuated_idx);
         % tau = -kp_one.*(q(model.actuated_idx)-q1(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
@@ -173,9 +158,56 @@ switch robot_state
             last_debug_bucket = current_bucket;
         end
 
+        % Check if within tolerance
+        if error_dist < persist_params.tolerance
+            fprintf("Reached tolerance for traj idx %i at %d\n", traj_idx, t)
+            traj_idx = traj_idx + 1;
+            if traj_idx > height(traj)
+                robot_state = 'stage_2';
+                state_change = true;
+                disp(q)
+            end
+        end
+
+    case 'stage_2'
+        if state_change
+            state_change = false;
+            foot_des = persist_params.stage2;
+            qdes = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), persist_params.mask, q);
+            disp("changing to stage 2")
+            traj = generate_trajectory(q(model.actuated_idx), qdes(model.actuated_idx), 2);
+            traj_idx = 1;
+        end
+        %% Base controller to keep stance for now
+        kp_left = persist_params.kp_left;
+        kd_left = persist_params.kd_left;
+        kp_right = persist_params.kp_right;
+        kd_right = persist_params.kd_right;
+        % left leg
+        kp_arr = [kp_left; kp_right; kp_left; kp_right; kp_left; kp_right; kp_left; kp_right; kp_left*0.5; kp_right*0.5];
+
+        kd_arr = [kd_left; kd_right; kd_left; kd_right; kd_left; kd_right; kd_left; kd_right; kd_left*0.5; kd_right*0.5];
+
+        q1 = traj(traj_idx,:).';
+        tau = -kp_arr.*(q(model.actuated_idx)-q1) - kd_arr.*dq(model.actuated_idx) ;
+
+        error_dist = norm((q(model.actuated_idx)-q1))^2;
+    
+        current_bucket = floor(t / debug_interval);
+    
+        % If we have moved to a new bucket, print and update
+        if current_bucket > last_debug_bucket
+            fprintf('[DEBUG t=%.2f] Error Distance: %d | Traj Idx: %i\n', t, error_dist, traj_idx);
+            last_debug_bucket = current_bucket;
+        end
+
         [p1_curr, p2_curr, p3_curr, p4_curr] = computeFootPositions(q, model);
         p_foot = [p1_curr, p2_curr, p3_curr, p4_curr];
-        p_foot = p_foot(:,1:2);
+        if strcmp(direction,'left')
+            p_foot = p_foot(:,1:2);
+        else
+            p_foot = p_foot(:,3:4);
+        end
 
         if min(p_foot(3,:)) < 1e-3
             disp('touchdown')
@@ -185,33 +217,25 @@ switch robot_state
         end
 
         % Check if within tolerance
-        if error_dist < params.tolerance
+        if error_dist < persist_params.tolerance
             fprintf("Reached tolerance for traj idx %i at %d\n", traj_idx, t)
             traj_idx = traj_idx + 1;
 
-
-
-            % if traj_idx > height(traj)
-            %     robot_state = 'stage_end';
-            %     state_change = true;
-            %     disp(q)
-            %     % traj_idx = 1;
-            % end
         end
 
     case 'stage_end'
         if state_change
+            disp(t)
             state_change = false;
             qdes = q;
             % dqdes = zeros(size(dq));
             disp("changing to stage end")
             % disp(norm(q - qdes))
         end
-        kp = 1800 ; 
+        kp = 1800 ;
         kd = 300 ;
         q0 = qdes;
         tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-
 end
 
 end
@@ -256,12 +280,8 @@ function q_sol = solveFootIK(model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, feet_active,
     x0 = q0(act_indices); 
     
     active_flags = feet_active(:);
-    % disp(active_flags)
 
     % 4. Calculate Absolute CoM Target
-    dq_dummy = zeros(size(q0));
-    % [r_com_0, ~] = computeComPosVel(q0, dq_dummy, model);
-    % com_tgt_abs = r_com_0 + com_delta;
 
     % 5. Define Solver Options for 'fmincon'
     % 'sqp' is excellent for handling equality constraints in kinematics
@@ -306,9 +326,6 @@ function cost = objectiveFunction(x, indices, q_template, model, p1_tgt, p2_tgt,
     q_current = q_template;
     q_current(indices) = x;
 
-    % q_current(17) = deg2rad(13) - q_current(11);
-    % q_current(18) = deg2rad(13) - q_current(12);
-
     % Forward Kinematics Feet
     [p1_curr, p2_curr, p3_curr, p4_curr] = computeFootPositions(q_current, model);
 
@@ -320,10 +337,6 @@ function cost = objectiveFunction(x, indices, q_template, model, p1_tgt, p2_tgt,
     diff3 = (p3_curr - p3_tgt) * (~active(3));
     diff4 = (p4_curr - p4_tgt) * (~active(4));
     
-    % Forward Kinematics CoM
-    % dq_dummy = zeros(size(q_current));
-    % [r_com_curr, ~] = computeComPosVel(q_current, dq_dummy, model);
-    % 
     % % Weighted Error Vector
     % diff_com = (r_com_curr - com_t)*10; 
     err_vec = [diff1; diff2; diff3; diff4];
@@ -338,9 +351,6 @@ function [c, ceq] = constraintFunction(x, indices, q_template, model, p1_t, p2_t
     % Reconstruct q
     q_current = q_template;
     q_current(indices) = x;
-
-    % q_current(17) = deg2rad(13) - q_current(11);
-    % q_current(18) = deg2rad(13) - q_current(12);
     
     % Forward Kinematics Feet
     [p1, p2, p3, p4] = computeFootPositions(q_current, model);
@@ -382,12 +392,12 @@ function [q, t] = generate_trajectory(q_start, q_des, num_steps)
     % % Normalize time to range [0, 1] to simplify polynomial calculation
     % % tau = t / T
     % tau = t / delta_t;
-    tau = linspace(0, 1, num_steps)';
+    t_steps = linspace(0, 1, num_steps)';
     
     % --- QUADRATIC EASE-OUT ---
     % This is much simpler than quintic.
     % It starts at max speed and decelerates to 0 velocity at the end.
-    s = 1 - (1 - tau).^2;
+    s = 1 - (1 - t_steps).^2;
     
     % Calculate Trajectories for all joints
     % q(t) = q0 + (qf - q0) * s(tau)
@@ -396,7 +406,7 @@ function [q, t] = generate_trajectory(q_start, q_des, num_steps)
     q = repmat(q0', num_steps, 1) + (s * delta_q);
 
     figure(5);
-    plot(tau, q, 'LineWidth', 2);
+    plot(t_steps, q, 'LineWidth', 2);
     grid on;
     
     % Labeling

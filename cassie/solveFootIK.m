@@ -37,12 +37,6 @@ function q_sol = solveFootIK(model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, feet_active,
     x0 = q0(act_indices); 
     
     active_flags = feet_active(:);
-    % disp(active_flags)
-
-    % 4. Calculate Absolute CoM Target
-    dq_dummy = zeros(size(q0));
-    % [r_com_0, ~] = computeComPosVel(q0, dq_dummy, model);
-    % com_tgt_abs = r_com_0 + com_delta;
 
     % 5. Define Solver Options for 'fmincon'
     % 'sqp' is excellent for handling equality constraints in kinematics
@@ -76,6 +70,8 @@ function q_sol = solveFootIK(model, p1_tgt, p2_tgt, p3_tgt, p4_tgt, feet_active,
 
     % 10. Convergence Check
     if exitflag <= 0
+        fprintf('IK Solver (fmincon) Objective Cost: %e\n', fval);
+        fprintf('  Max Constraint Violation: %e (Should be close to 0)\n', output.constrviolation);
         warning('IK Solver did not converge perfectly.');
     end
 end

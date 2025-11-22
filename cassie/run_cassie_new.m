@@ -10,11 +10,39 @@ model = load('cassie_model.mat') ;
 % Initial configuration
 [x0, model] = getInitialState(model.model);
 
+clear functions;         % <--- Or this, which clearsh all persistent variables
 
 % Get STUDENT Control Parameters
 params = studentParams(model);
 
-clear functions;         % <--- Or this, which clearsh all persistent variables
+q = x0(1 : model.n);
+dq = x0(model.n+1 : 2*model.n);
+
+[r_com, v_com] = computeComPosVel(q, dq, model);
+[p1, p2, p3, p4] = computeFootPositions(q, model);
+
+% disp(compute_COM_pos);
+
+r_com_xy = r_com(1:2);
+v_com_xy = v_com(1:2);
+
+poly_points_x = [p1(1), p2(1), p3(1), p4(1)];
+poly_points_y = [p1(2), p2(2), p3(2), p4(2)];
+
+disp('poly points')
+disp(poly_points_x)
+disp(poly_points_y)
+disp(r_com_xy)
+disp(v_com_xy)
+
+% ankle_pos_des_1 = [0, 0.1305, 0.1];
+
+
+
+
+
+% q_diff = params.q1 - q;
+% print(q_diff)
 
 % ODE options
 time_inter = [0 5] ;
@@ -78,4 +106,12 @@ figure ;
         
 %% Animation
 stateData = getVisualizerState(x_vec, model);
+
+t_vec = t_vec; %.*4
 vis = CassieVisualizer(t_vec, stateData);
+% view([20 0])
+% 
+% x1 = x0;
+% x1(1:20) = params.q1;
+% stateData = getVisualizerState(x1', model);
+% vis = CassieVisualizer([0], stateData);
