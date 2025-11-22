@@ -1,5 +1,5 @@
 function tau = studentController(t, s, model, params)
-
+params = studentParams(model);
 q = s(1 : model.n);
 dq = s(model.n+1 : 2*model.n);
 
@@ -55,13 +55,12 @@ end
 A_eq = G_c;
 b_eq = W_des;
 
-% Inequality constraints for friction cones (A_ineq * F <= b_ineq)
-mu = params.mu; % Friction coefficient
+mu = params.mu;
 A_foot = [ 0,  0, -1;  % -fz <= 0 (unilateral force)
-           1,  0, -mu; % fx - mu*fz <= 0
-          -1,  0, -mu; % -fx - mu*fz <= 0
-           0,  1, -mu; % fy - mu*fz <= 0
-           0, -1, -mu];% -fy - mu*fz <= 0
+    1,  0, -mu; % fx - mu*fz <= 0
+    -1,  0, -mu; % -fx - mu*fz <= 0
+    0,  1, -mu; % fy - mu*fz <= 0
+    0, -1, -mu];% -fy - mu*fz <= 0
 A_ineq = kron(eye(num_contacts), A_foot);
 b_ineq = zeros(size(A_ineq, 1), 1);
 
@@ -74,7 +73,7 @@ options = optimoptions('quadprog', 'Display', 'none');
 [F_total, ~, exitflag] = quadprog(H, f_obj, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
 
 if exitflag ~= 1
-    warning('QP for force distribution: exitflag %d. Infeasible. Using pseudo-inverse fallback.', exitflag);
+    warning('QP for force distribution: exitflag %d. Infeasible.', exitflag);
     % F_total = pinv(G_c) * W_des;
 end
 
@@ -86,8 +85,8 @@ J_feet_body_linear = {J1f_b(4:6,:), J1b_b(4:6,:), J2f_b(4:6,:), J2b_b(4:6,:)};
 tau_dy = zeros(length(model.independent_idx), 1);
 for i = 1:num_contacts
     f_i_world = F_total((i-1)*3+1 : i*3);
-	J_i_body_linear = J_feet_body_linear{i};
-	tau_dy = tau_dy + J_i_body_linear' * f_i_world;
+    J_i_body_linear = J_feet_body_linear{i};
+    tau_dy = tau_dy + J_i_body_linear' * f_i_world;
 end
 
 tau_full = zeros(model.n, 1);
