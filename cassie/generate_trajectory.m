@@ -1,4 +1,4 @@
-function [q, t] = generate_trajectory(q_start, q_des, delta_t, num_steps)
+function [q, t] = generate_trajectory(q_start, q_des, num_steps)
 % GENERATE_TRAJECTORY Generates a minimum-jerk (quintic) trajectory positions.
 %
 % Inputs:
@@ -15,24 +15,40 @@ function [q, t] = generate_trajectory(q_start, q_des, delta_t, num_steps)
     q0 = q_start(:);
     qf = q_des(:);
     
-    % Create time vector
-    t = linspace(0, delta_t, num_steps)';
+    % % Create time vector
+    % t = linspace(0, delta_t, num_steps)';
+    % 
+    % % Normalize time to range [0, 1] to simplify polynomial calculation
+    % % tau = t / T
+    % tau = t / delta_t;
+    tau = linspace(0, 1, num_steps)';
     
-    % Normalize time to range [0, 1] to simplify polynomial calculation
-    % tau = t / T
-    tau = t / delta_t;
-    
-    % Quintic Polynomial Coefficients for rest-to-rest motion:
-    % The polynomial is: s(tau) = 10*tau^3 - 15*tau^4 + 6*tau^5
-    % This satisfies s(0)=0, s(1)=1, and 0 velocity/accel at boundaries.
-    
-    % Position scaling factor
-    s = 10 * tau.^3 - 15 * tau.^4 + 6 * tau.^5;
+    % --- QUADRATIC EASE-OUT ---
+    % This is much simpler than quintic.
+    % It starts at max speed and decelerates to 0 velocity at the end.
+    s = 1 - (1 - tau).^2;
     
     % Calculate Trajectories for all joints
     % q(t) = q0 + (qf - q0) * s(tau)
     delta_q = (qf - q0)'; % Transpose to row vector for broadcasting
     
     q = repmat(q0', num_steps, 1) + (s * delta_q);
+
+    figure(5);
+    plot(tau, q, 'LineWidth', 2);
+    grid on;
+    
+    % Labeling
+    xlabel('Time (s)');
+    ylabel('Position');
+    title('Minimum Jerk Trajectory');
+    
+    % Dynamic Legend Generation
+    num_joints = length(q0);
+    legend_labels = cell(1, num_joints);
+    for i = 1:num_joints
+        legend_labels{i} = sprintf('Joint %d', i);
+    end
+    legend(legend_labels, 'Location', 'best');
 
 end

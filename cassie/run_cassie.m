@@ -10,6 +10,7 @@ model = load('cassie_model.mat') ;
 % Initial configuration
 [x0, model] = getInitialState(model.model);
 
+clear functions;         % <--- Or this, which clearsh all persistent variables
 
 % Get STUDENT Control Parameters
 params = studentParams(model);
@@ -36,17 +37,21 @@ disp(v_com_xy)
 
 % ankle_pos_des_1 = [0, 0.1305, 0.1];
 
-params.stage1 = [[0.0921;0.1305;0.15], [-0.0879;0.1305;0.15], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
-% params.stage2 = [[0.0921;0.505;0], [-0.0879;0.505;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+foot_dx = 0;
+foot_dy = 0.2;
+
+params.stage1 = [[0.0921+foot_dx;0.1305+foot_dy;0.05], [-0.0879+foot_dx;0.1305+foot_dy;0.05], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+% params.stage1 = [[0.0921;0.1305;-0.2], [-0.0879;0.1305;0-0.2], [0.0921;-0.1305;-0.2], [-0.0879;-0.1305;-0.2]];
+params.stage2 = [[0.0921;0.1305+foot_dy*2;0], [-0.0879;0.1305+foot_dy*2;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
 
 % params.q1 = solveFootIK(model, [0.0921;0.1305;0.1], [-0.0879;0.1305;0.1], [0.0921;-0.1305;0], [-0.0879;-0.1305;0], q);
-params.t1 = 4.5;
+params.t1 = 0.4;
 
 % params.q2 = solveFootIK(model, [0.0921;0.405;0], [-0.0879;0.405;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0], q);
-params.t2 = 0.4;
+params.t2 = 0.5;
 
 
-params.tolerance = 0.1;
+params.tolerance = 0.05;
 
 % q_diff = params.q1 - q;
 % print(q_diff)
@@ -113,8 +118,10 @@ figure ;
         
 %% Animation
 stateData = getVisualizerState(x_vec, model);
+
+t_vec = t_vec .* 4;
 vis = CassieVisualizer(t_vec, stateData);
-view([20 0])
+% view([20 0])
 % 
 % x1 = x0;
 % x1(1:20) = params.q1;

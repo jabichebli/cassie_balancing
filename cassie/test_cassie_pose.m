@@ -37,10 +37,22 @@ disp(v_com_xy)
 % ankle_pos_des_1 = [0, 0.1305, 0.1];
 
 % foot_des = [[0.0921+0.0900;0.1305;0.1], [-0.0879+0.0900;0.1305;0.1], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
-foot_des = [[0.0921;0.1305;0.1], [-0.0879;0.1305;0.1], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
 % foot_des = [[0.0921;0.1305;0], [-0.0879;0.1305;0], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+% foot_des = [[0.0921;0.1305;0.1], [-0.0879;0.1305;0.1], [0.0921;-0.1305;0.05], [-0.0879;-0.1305;0.05]];
 
-q1 = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), [1;1;0;0], [0;0;-0.05], q);
+foot_dx = -0.1;
+foot_dy = 0.2;
+
+foot_des = [[0.0921+foot_dx;0.1305+foot_dy;0.10], [-0.0879+foot_dx;0.1305+foot_dy;0.10], [0.0921;-0.1305;0], [-0.0879;-0.1305;0]];
+
+q1 = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), [1;1;0;0], q);
+
+disp(q1)
+
+num_traj = 2;
+traj = generate_trajectory(q, q1, num_traj);
+
+q_arr = traj;
 
 % disp(q)
 % disp(q1)
@@ -130,11 +142,26 @@ disp(r_com1 - r_com)
 % stateData = getVisualizerState(x_vec, model);
 % vis = CassieVisualizer(t_vec, stateData);
 % 
-x1 = x0;
-x1(1:20) = q1;
+% x1 = x0;
+% x1(1:20) = q1;
 
 
 
-stateData = getVisualizerState(x1', model);
-vis = CassieVisualizer([0], stateData);
+t_space = linspace(1,2,num_traj);
+
+x1_arr = zeros([48, length(t_space)+1]);
+x1_arr(:,end) = x0; % Initialize the last column of x1_arr with the initial state
+
+for t = 1:length(t_space)
+
+    x1 = x0;
+    x1(1:20) = q_arr(t,:);
+    x1_arr(:,t) = x1;
+
+end
+
+stateData = getVisualizerState(x1_arr', model);
+
+% stateData = getVisualizerState(x1', model);
+vis = CassieVisualizer(t_space, stateData);
 view([120 0])
