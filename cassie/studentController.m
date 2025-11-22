@@ -74,7 +74,7 @@ switch robot_state
         tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
 
         a_com = [0;0;0];
-        if t>0.2
+        if t>0.01
             [r_com, v_com] = computeComPosVel(q, dq, model);
             a_com = v_com/t;
         end
@@ -142,6 +142,15 @@ switch robot_state
         % left leg
         kp_arr = [kp_left; kp_right; kp_left; kp_right; kp_left; kp_right; kp_left; kp_right; kp_left*0.5; kp_right*0.5];
         kd_arr = [kd_left; kd_right; kd_left; kd_right; kd_left; kd_right; kd_left; kd_right; kd_left*0.5; kd_right*0.5];
+
+        % left leg
+        kp_arr = ones([5,2]);
+        kp_arr(1:4,1) = kp_arr(1:4,1) .* 500;
+        kp_arr(5,1) = kp_arr(5,1) .* 500;
+        kp_arr(:,2) = kp_arr(:,2) * 1800;
+        kp_arr = [kp_arr(:,1) ; kp_arr(:,2)];
+
+        kd_arr = ones([10,1]) .* 100;
 
         q1 = traj(traj_idx,:).';
         % q1 = qdes(model.actuated_idx);
@@ -227,6 +236,7 @@ switch robot_state
         if state_change
             disp(t)
             state_change = false;
+            clear functions;
             qdes = q;
             % dqdes = zeros(size(dq));
             disp("changing to stage end")
