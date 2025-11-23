@@ -17,7 +17,7 @@ params = studentParams(model);
 q = x0(1 : model.n);
 % dq = x0(model.n+1 : 2*model.n);
 
-persist_params.foot_dx = -0.3;
+persist_params.foot_dx = 0.3;
 persist_params.foot_dy = 0.3;
 
 q(3) = q(3)-0.05;
@@ -61,14 +61,35 @@ x1_arr(:,end) = x0; % Initialize the last column of x1_arr with the initial stat
 x1 = x0;
 x1(1:20) = q1;
 
-disp('one shot')
-[p1, p2, p3, p4] = computeFootPositions(q1, model)
-disp('two shots')
-[p1, p2, p3, p4] = computeFootPositions(q2, model)
+x1(1:20) = [
+    0.000000000000015;
+    0;
+    1.000580162074814;
+    0;
+    0;
+    0;
+    0.000000000004456;
+    -0.484872908754249;
+    0.000000000004897;
+    0.000784657895984;
+    0.499196772305568;
+    0.246016441301670;
+    -1.199102036600269;
+    -0.664972777934618;
+    0;
+    0;
+    1.426892802759263;
+    1.426892802759263;
+    -1.599652164461726;
+    -1.926211472365480
+];
+
+% disp('one shot')
+% [p1, p2, p3, p4] = computeFootPositions(q1, model)
+% disp('two shots')
+% [p1, p2, p3, p4] = computeFootPositions(q2, model)
 
 % stateData = getVisualizerState(x1_arr', model);
 
 stateData = getVisualizerState(x1', model);
 vis = CassieVisualizer([0], stateData);
-drawnow();
-% view([120 0])
