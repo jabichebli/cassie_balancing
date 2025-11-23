@@ -23,6 +23,9 @@ persistent last_t;
 persistent t_stage_start;
 
 persistent hip_abductor;
+persistent debug_q_act;
+
+persistent hip_pitch;
 
 % print(params)
 
@@ -41,6 +44,8 @@ if isempty(robot_state)
     traj_idx = 1;
     last_debug_bucket = -1;
     last_ik_bucket = -1;
+
+    hip_pitch = [];
 
     fprintf('State: %-10s | state_change: %d | Idx: %i\n', ...
     robot_state, state_change, traj_idx);
@@ -121,10 +126,10 @@ switch robot_state
                 %left toe, left ankle, right toe, right ankle
                 % persist_params.stage1 = [[0.0921;0.1305;-0.05],...
                 %                          [-0.0879;0.1305;-0.05],...
-                persist_params.stage1 = [[0.0921;0.1305+persist_params.foot_dy*1.1;0],...
-                                         [-0.0879;0.1305+persist_params.foot_dy*1.1;0],...
-                                         [0.0921+persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.1],...
-                                         [-0.0879+persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.1]];
+                persist_params.stage1 = [[0.0921;0.1305+persist_params.foot_dy*1.3;0],...
+                                         [-0.0879;0.1305+persist_params.foot_dy*1.3;0],...
+                                         [0.0921+persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.15],...
+                                         [-0.0879+persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.15]];
                 % persist_params.p_target_ankle = [0.0921+persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.3];
                 % persist_params.p_target_toe = [-0.0879+persist_params.foot_dx;-0.1305-persist_params.foot_dy;0.3];
                 
@@ -138,8 +143,8 @@ switch robot_state
                 % persist_params.kp_right = 300;
                 % persist_params.kd_right = 30;
 
-                persist_params.stage1_kp_left = 300;
-                persist_params.stage1_kd_left = 30;
+                persist_params.stage1_kp_left = 1500;
+                persist_params.stage1_kd_left = 300;
                 persist_params.stage1_kp_right = 1000;
                 persist_params.stage1_kd_right = 200;
 
@@ -175,28 +180,32 @@ switch robot_state
             foot_des = persist_params.stage1;
             q_tmp = solveSingleFootIK(model, 'body', 'right', foot_des(:,3), foot_des(:,4), q);
             hip_abductor = q_tmp(8);
+            traj_idx = 1;
         end
         current_bucket = floor(t / ik_interval);
 
+
+
         if current_bucket > last_ik_bucket
             foot_des = persist_params.stage1;
-            q1 = q;
-            last_q1 = q1;
-
             q1 = solveFootIK(model, foot_des(:,1), foot_des(:,2), foot_des(:,3), foot_des(:,4), [1;1;0;0], q);
             q2 = solveSingleFootIK(model, 'body', 'right', foot_des(:,3), foot_des(:,4), q);
             q1([8, 10, 12, 14, 20]) = q2([8, 10, 12, 14, 20]);
             % q1(7) = -hip_abductor * (1 - exp(-t / 0.1));
             % q1(9) = q1(9) - 0.3 * (1 - exp(-t / 0.13));
             % q1(8) = q1(8) + deg2rad(15 * (1 - exp(-t / 0.5)))/2;
-            fprintf('pitch: %.2d', q(5))
             fprintf('[DEBUG Current Bucket=%i]\n', current_bucket);
 
             traj = generate_trajectory(q(model.actuated_idx), q1(model.actuated_idx), 2);
-            traj_idx = 1;
+            % traj_idx = 1;
 
             last_ik_bucket = current_bucket;
         end
+
+        q1 = traj(traj_idx,:).';
+
+        hip_pitch = [hip_pitch, [t; q1(5); q(5)]];
+        debug_q_act = [debug_q_act, [t; q1; q(model.actuated_idx)]];
 
         %% Base controller to keep stance for now
 
@@ -208,8 +217,7 @@ switch robot_state
         % weights
         % hip abduction, hip rotation, hip flexion, knee joint, toe joint
         % left_weights = [1, 1, 0.09, 0.4, 0.8];
-        left_weights = [1, 1, 1, 1, 1];
-        % right_weights = left_weights;
+        left_weights = [1, 1, 1, 1, 0.8];
         right_weights = [1, 1, 1, 1, 1];
 
         C = [left_weights(:),right_weights(:)].';
@@ -218,7 +226,7 @@ switch robot_state
         kp_arr = total_weights.*[kp_left; kp_right; kp_left; kp_right; kp_left; kp_right; kp_left; kp_right; kp_left; kp_right];
         kd_arr = total_weights.*[kd_left; kd_right; kd_left; kd_right; kd_left; kd_right; kd_left; kd_right; kd_left; kd_right];
 
-        q1 = traj(traj_idx,:).';
+        
         tau = -kp_arr.*(q(model.actuated_idx)-q1) - kd_arr.*dq(model.actuated_idx) ;
 
         error_dist = norm((q(model.actuated_idx)-q1))^2;
@@ -241,17 +249,18 @@ switch robot_state
             disp('touchdown')
             robot_state = 'stage_end';
             state_change = true;
-            disp(q)
+            % disp(q)
         end
 
         % Check if within tolerance
         if error_dist < persist_params.tolerance
-            fprintf("Reached tolerance for traj idx %i at %d\n", traj_idx, t)
+            fprintf("Reached tolerance for traj idx %i at %.2f\n", traj_idx, t)
             % [p1_curr, p2_curr, p3_curr, p4_curr] = computeFootPositions(q, model)
             traj_idx = traj_idx + 1;
             if traj_idx > height(traj)
                 robot_state = 'stage_end';
                 state_change = true;
+                disp('Finished Trajectory for Stage 1')
             end
         end
 
@@ -311,14 +320,47 @@ switch robot_state
 
     case 'stage_end'
         if state_change
-            disp(t)
-            state_change = false;
+            fprintf('Reached Stage End at Time: %.2d. Holding Position', t)
+            
+            figure; hold on;
+            plot(hip_pitch(1,:), hip_pitch(2,:), 'DisplayName', 'desired');
+            plot(hip_pitch(1,:), hip_pitch(3,:), 'DisplayName', 'actual');
+            title("Hip pitch over time")
+            legend on;
+
+            figure; hold on;
+            % plot(debug_q_act(1,:), debug_q_act(2:end,:));
+            title("Desired Joints over time")
+            subplot(2,1,1) ;
+            plot(debug_q_act(1,:), debug_q_act(2:2:10,:)) ;
+            grid on ; title('Left Desired Angles') ; legend('abduction','rotation','flexion','knee','toe') ;
+            ylim([-2, 1])
+
+            subplot(2,1,2) ;
+            plot(debug_q_act(1,:), debug_q_act(12:2:end,:)) ;
+            grid on ; title('Left Actual Angles') ; legend('abduction','rotation','flexion','knee','toe') ;
+            ylim([-2, 1])
+
+
+            figure; hold on;
+            % plot(debug_q_act(1,:), debug_q_act(2:end,:));
+            title("Desired Joints over time")
+            subplot(2,1,1) ;
+            plot(debug_q_act(1,:), debug_q_act(3:2:11,:)) ;
+            grid on ; title('Right Desired Angles') ; legend('abduction','rotation','flexion','knee','toe') ;
+            ylim([-2, 1])
+
+            subplot(2,1,2) ;
+            plot(debug_q_act(1,:), debug_q_act(13:2:end,:)) ;
+            grid on ; title('Right Actual Angles') ; legend('abduction','rotation','flexion','knee','toe') ;
+            ylim([-2, 1])
+    
+
             clear functions;
             qdes = q;
             t_stage_start = t;
-            % dqdes = zeros(size(dq));
-            disp("changing to stage end, holding position")
-            % disp(norm(q - qdes))
+            state_change = false;
+            
         end
         
         kp = 1800 ;

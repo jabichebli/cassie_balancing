@@ -93,3 +93,4 @@ x1(1:20) = [
 
 stateData = getVisualizerState(x1', model);
 vis = CassieVisualizer([0], stateData);
+disp("end")
