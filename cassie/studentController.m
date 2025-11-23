@@ -3,10 +3,8 @@ params = studentParams(model);
 q = s(1 : model.n);
 dq = s(model.n+1 : 2*model.n);
 
-% Get current CoM position and velocity
+% Get current position and velocity
 [p_CoM, v_CoM] = computeComPosVel(q, dq, model);
-
-% Get current pelvis orientation and angular velocity
 yaw   = q(4);
 pitch = q(5);
 roll  = q(6);
@@ -56,7 +54,7 @@ A_eq = G_c;
 b_eq = W_des;
 
 mu = params.mu;
-A_foot = [ 0,  0, -1;  % -fz <= 0 (unilateral force)
+A_foot = [ 0,  0, -1;  % -fz <= 0
     1,  0, -mu; % fx - mu*fz <= 0
     -1,  0, -mu; % -fx - mu*fz <= 0
     0,  1, -mu; % fy - mu*fz <= 0
@@ -64,17 +62,15 @@ A_foot = [ 0,  0, -1;  % -fz <= 0 (unilateral force)
 A_ineq = kron(eye(num_contacts), A_foot);
 b_ineq = zeros(size(A_ineq, 1), 1);
 
-% Objective function: Minimize the squared sum of forces
+% Solve QP
 H = 2 * eye(contact_forces_dim);
 f_obj = zeros(contact_forces_dim, 1);
 options = optimoptions('quadprog', 'Display', 'none');
-
-% Solve QP
 [F_total, ~, exitflag] = quadprog(H, f_obj, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
 
 if exitflag ~= 1
     warning('QP for force distribution: exitflag %d. Infeasible.', exitflag);
-    F_total = pinv(G_c) * W_des;
+    % F_total = pinv(G_c) * W_des;
 end
 
 % Jacobians
