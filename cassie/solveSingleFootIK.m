@@ -86,7 +86,7 @@ function cost = objectiveFunction(x, indices, q_template, model, p1_tgt, p2_tgt,
     % Regularization (Secondary Cost)
     % Keeps joints close to initial guess to prevent flipping
     q_diff = x - q_template(indices);
-    cost_reg = sum(q_diff.^2); % Small weight
+    cost_reg = sum(q_diff.^2)*0; % Small weight
     
     cost = cost_tracking + cost_reg;
 end
