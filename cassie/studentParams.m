@@ -4,8 +4,8 @@ function params = studentParams(model)
 
 params = struct();
 
-params.foot_dx = 0;
-params.foot_dy = 0.2;
+params.foot_dx = 0.3;
+params.foot_dy = 0.5;
 
 params.t1 = 0.4;
 params.t2 = 0.5;

@@ -34,21 +34,21 @@ function [q, t] = generate_trajectory(q_start, q_des, num_steps)
     
     q = repmat(q0', num_steps, 1) + (s * delta_q);
 
-    figure(5);
-    plot(tau, q, 'LineWidth', 2);
-    grid on;
-    
-    % Labeling
-    xlabel('Time (s)');
-    ylabel('Position');
-    title('Minimum Jerk Trajectory');
+    % figure(5);
+    % plot(tau, q, 'LineWidth', 2);
+    % grid on;
+    % 
+    % % Labeling
+    % xlabel('Time (s)');
+    % ylabel('Position');
+    % title('Minimum Jerk Trajectory');
     
     % Dynamic Legend Generation
-    num_joints = length(q0);
-    legend_labels = cell(1, num_joints);
-    for i = 1:num_joints
-        legend_labels{i} = sprintf('Joint %d', i);
-    end
-    legend(legend_labels, 'Location', 'best');
+    % num_joints = length(q0);
+    % legend_labels = cell(1, num_joints);
+    % for i = 1:num_joints
+    %     legend_labels{i} = sprintf('Joint %d', i);
+    % end
+    % legend(legend_labels, 'Location', 'best');
 
 end

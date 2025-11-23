@@ -78,4 +78,4 @@ figure ;
         
 %% Animation
 stateData = getVisualizerState(x_vec, model);
-vis = CassieVisualizer(t_vec, stateData);
+vis = CassieVisualizer(t_vec.*2, stateData);

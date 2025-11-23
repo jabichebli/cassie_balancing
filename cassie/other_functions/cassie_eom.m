@@ -5,7 +5,6 @@ function [xdot, tau] = cassie_eom(t,s, model, params, externalForce)
 q = s(1 : model.n);
 dq = s(model.n+1 : 2*model.n);
 
-
 %% Student Control input
 % get STUDENT Control
 tauStudent = studentController(t, s, model, params);
