@@ -77,5 +77,6 @@ figure ;
         grid on ; title('Right Torques') ; legend('abduction','rotation','flexion','knee','toe') ;
         
 %% Animation
+pause(0.5);
 stateData = getVisualizerState(x_vec, model);
-vis = CassieVisualizer(t_vec.*2, stateData);
+vis = CassieVisualizer(t_vec, stateData);

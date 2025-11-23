@@ -45,13 +45,14 @@ function q_sol = solveSingleFootIK(model, env, foot, p_target_ankle, p_target_to
     % 5. Run Solver (Unconstrained)
     nonlcon = [];
     [x_sol, fval, exitflag, output] = fmincon(fun, x0, [], [], [], [], [], [], nonlcon, options);
-    fprintf('  Final Cost: %e\n', fval);
+    % fprintf('  Final Cost: %e\n', fval);
     % 6. Reconstruct
     q_sol = q0;                 
     q_sol(act_indices) = x_sol; 
 
     if exitflag <= 0
-        fprintf('  Final Cost: %e\n', fval);
+
+        fprintf("Single Foot Solver didn't converge, Final Cost: %e\n", fval);
     end
 end
 
@@ -68,10 +69,13 @@ function cost = objectiveFunction(x, indices, q_template, model, p1_tgt, p2_tgt,
     % Calculate Diff Vectors
     % LOGIC CHECK: We multiply by 'active' (not ~active).
     % If active(1) is 1, we count this error. If 0, the error becomes [0;0;0].
-    diff1 = (p1_curr - p1_tgt) * active(1);
-    diff2 = (p2_curr - p2_tgt) * active(2);
-    diff3 = (p3_curr - p3_tgt) * active(3);
-    diff4 = (p4_curr - p4_tgt) * active(4);
+    foot_weighting = [1; 1; 1];
+    diff1 = (p1_curr - p1_tgt) * active(1).* foot_weighting;
+    diff2 = (p2_curr - p2_tgt) * active(2).* foot_weighting;
+    diff3 = (p3_curr - p3_tgt) * active(3).* foot_weighting;
+    diff4 = (p4_curr - p4_tgt) * active(4).* foot_weighting;
+
+
     
     % Stack errors into one large vector
     err_vec = [diff1; diff2; diff3; diff4];
