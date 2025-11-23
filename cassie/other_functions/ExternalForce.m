@@ -1,7 +1,7 @@
 function f_ext = ExternalForce(t, q,model)
 % F_pert 6x1 - roll, pitch, yaw, x,y,z
 if t > 1 && t < 1.1
-    F_pert = [0; 0; 5; 0; 5; 0];
+    F_pert = [0; 0; 0; 0; 5; 0];
 else
     F_pert = [0; 0; 0; 0; 0; 0];
 end
