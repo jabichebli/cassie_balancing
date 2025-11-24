@@ -37,7 +37,7 @@ for i = 1:num_contacts
     G_c(4:6, (i-1)*3+1:i*3) = hat_map(p_foot_relative);
 end
 
-% QP setup (the parts that don't change)
+% QP setup
 A_eq = G_c;
 mu = params.mu;
 A_foot = [ 0,  0, -1;  % -fz <= 0
@@ -47,20 +47,21 @@ A_foot = [ 0,  0, -1;  % -fz <= 0
     0, -1, -mu];% -fy - mu*fz <= 0
 A_ineq = kron(eye(num_contacts), A_foot);
 b_ineq = zeros(size(A_ineq, 1), 1);
+
 H = 2 * eye(contact_forces_dim);
 f_obj = zeros(contact_forces_dim, 1);
 options = optimoptions('quadprog', 'Display', 'none', 'MaxIter', 1000);
 
-% Iteratively solve QP, reducing PD gains if infeasible
+% Iteratively solve QP
 kp_CoM = params.kp_CoM;
 kd_CoM = params.kd_CoM;
 kp_pelvis = params.kp_pelvis;
 kd_pelvis = params.kd_pelvis;
 
-max_tries = 5;
+max_tries = 1;
 exitflag = -2; % Initialize to a failure code
 W_des = [];
-
+flag = true;
 for i = 1:max_tries
     % Calculate desired wrench
     f_d = -kp_CoM .* error_p_CoM - kd_CoM .* error_v_CoM ...
@@ -72,33 +73,49 @@ for i = 1:max_tries
 
     % Solve QP
     [F_total, ~, exitflag] = quadprog(H, f_obj, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
-    
     if exitflag == 1
-        % Feasible solution found
+        % fprintf('INFO: QP solved at t=%.3f on attempt %d. Final gains (1st element): kp_CoM=%.2f, kd_CoM=%.2f, kp_pelvis=%.2f, kd_pelvis=%.2f\n', t, i, kp_CoM(1), kd_CoM(1), kp_pelvis(1), kd_pelvis(1));
         break;
     end
-    
-    % If not feasible, reduce gains for next iteration
-    W_des_string = mat2str(W_des);
-    warning('t = %f - lowering gains %i - W_des = %s', t, i, W_des_string);
 
-    kp_CoM = kp_CoM * 0.8;
-    kd_CoM = kd_CoM * 0.8;
-    kp_pelvis = kp_pelvis * 0.8;
-    kd_pelvis = kd_pelvis * 0.8;
+
+    kp_CoM = kp_CoM * 0.9;
+    kd_CoM = kd_CoM * 0.9;
+    kp_pelvis = kp_pelvis* 0.9;
+    kd_pelvis = kd_pelvis* 0.9;
+    % if exitflag ~= 1
+    %     fprintf('Try %i', i)
+    %     disp("a ineq")
+    %     disp(A_ineq*F_total-b_ineq);
+    %     disp("b ineq")
+    %     disp(b_ineq);
+    %     disp("a eq")
+    %     disp(A_eq*F_total-b_eq);
+    %     disp("b eq")
+    %     disp(b_eq);
+    % end
 end
 
 if exitflag ~= 1
+    fprintf('Try %i\n', i)
+    disp("a ineq")
+    disp(A_ineq*F_total-b_ineq);
+    disp("b ineq")
+    disp(b_ineq);
+    disp("a eq")
+    disp(A_eq*F_total-b_eq);
+    disp("b eq")
+    disp(b_eq);
     W_des_string = mat2str(W_des);
-    warning('QP infeasible (exitflag %d at t=%f) after %d tries. W_des = %s', exitflag, t, max_tries, W_des_string);
-    kp = 1800 ; 
-    kd = 300 ;
-    x0 = getInitialState(model);
-    q0 = x0(1:model.n) ;
-     tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-     return
+    error("%s", W_des_string);
+    % warning('fallback');
+    % kp = 1800 ;
+    % kd = 300 ;
+    % x0 = getInitialState(model);
+    % q0 = x0(1:model.n) ;
+    %  tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
+    %  return
 end
-
 % Jacobians
 [J1f_w, J1b_w, J2f_w, J2b_w] = computeFootJacobians(s, model);
 J_feet_world_linear = {J1f_w(4:6,:), J1b_w(4:6,:), J2f_w(4:6,:), J2b_w(4:6,:)};
@@ -118,5 +135,14 @@ tau_model = tau_full(model.actuated_idx);
 dq_actuated = dq(model.actuated_idx);
 tau_damping = -params.kd_internal .* dq_actuated;
 tau = tau_model + tau_damping;
+
+if any(abs(tau) > 100)
+    kp = 1800;
+    kd = 300;
+    x0 = getInitialState(model);
+    q0 = x0(1:model.n);
+    tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx);
+    return;
+end
 
 end
