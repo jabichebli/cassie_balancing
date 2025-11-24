@@ -13,15 +13,15 @@ params.R_pelvis_des = eye(3);
 
 params.kp_CoM = 2100 * [0.5; 1; 3]; % 2100  [1; 1; 3]
 params.kd_CoM = 195 * [1; 1; 2];  % 195  [1; 1; 2]
-params.kp_pelvis = 1000 * [1; 1; 0.1]; 
-params.kd_pelvis = 0.2 * [1; 1; 1];
+params.kp_pelvis = 1000 * [0.3; 0.3; 0.03]; 
+params.kd_pelvis = 250 * [0.01; 0.01; 0.001];
 
 % params.kp_CoM = [1000; 1000; 1000];
 % params.kd_CoM = [100; 100; 100];
 % params.kp_pelvis = [100 100 100]';
 % params.kd_pelvis = [10 10 10]';
 
-params.kd_internal = 5.0;
+params.kd_internal = 10.0;
 
 
 % Desired velocities and accelerations
