@@ -11,10 +11,10 @@ params.mass = model.M;
 params.p_CoM_des    = p_CoM0;
 params.R_pelvis_des = eye(3);
 
-params.kp_CoM = 2100 * [0.5; 1; 3]; % 2100  [1; 1; 3]
-params.kd_CoM = 195 * [1; 1; 2];  % 195  [1; 1; 2]
-params.kp_pelvis = -1000 * [0.3; 0.3; 0.03]; 
-params.kd_pelvis = -250 * [0.01; 0.01; 0.001];
+params.kp_CoM = 10*[1050; 2100; 6300]; % 10*[1050; 2100; 6300]
+params.kd_CoM = 10*[195; 195; 390];  % 10*[195; 195; 390]
+params.kp_pelvis = [2; 2; 2]; 
+params.kd_pelvis = [0.25; 0.25; 0.25];
 
 % params.kp_CoM = [1000; 1000; 1000];
 % params.kd_CoM = [100; 100; 100];
@@ -33,5 +33,6 @@ params.dw_pelvis_des = [0; 0; 0];
 % Robot properties
 params.I_pelvis = model.I{6}(1:3, 1:3);
 params.mu = 0.8;
+
 
 end
