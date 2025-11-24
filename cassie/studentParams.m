@@ -14,11 +14,11 @@ dq0 = x0(21:40);
 params.m  = model.M;
 params.g = 9.81;
 
-params.Kp_f = 2000;
-params.Kd_f = 300;
+params.Kp_f = [900, 900, 3000];
+params.Kd_f = [sqrt(params.m*params.Kp_f(1))*2*0.8, sqrt(params.m*params.Kp_f(1))*2*0.8, sqrt(params.m*params.Kp_f(3))*2*0.2];
 
-params.Kp_tau = 1000;
-params.Kd_tau = 1;
+params.Kp_tau = 100;
+params.Kd_tau = 10;
 
 params.r_com_des_W = r_com_0;
 params.dr_com_des_W = [0; 0; 0];
