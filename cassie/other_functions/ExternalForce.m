@@ -5,7 +5,7 @@ function f_ext = ExternalForce(t, q,model)
 % else
 %     F_pert = [0; 0; 0; 0; 0; 0];
 % end
-F_pert = [0 2.7 0 230 0 0]';
+F_pert = [0 -5 0 25 0 0]';
  % F_pert = [0; 0; 0; 0; 0; 0];
 
 % apply perturbation force on torso

@@ -37,6 +37,23 @@ for i = 1:num_contacts
     G_c(4:6, (i-1)*3+1:i*3) = hat_map(p_foot_relative);
 end
 
+
+% n = 8;
+% ths = linspace(0,2*pi,n+1);
+% 
+% mu = 0.8;
+% n_arr = zeros([3,n]);
+% for i = 1:n
+%     th = ths(i);
+%     R = [ cos(th)  -sin(th)     0;
+%           sin(th)   cos(th)     0;
+%           0         0           1 ];
+% 
+%     n_arr(:,i) = R*[mu;0;0];
+% end
+% 
+% 
+% n_arr
 % QP setup
 A_eq = G_c;
 mu = params.mu / sqrt(2);
@@ -61,7 +78,6 @@ kd_pelvis = params.kd_pelvis;
 max_tries = 1;
 exitflag = -2; % Initialize to a failure code
 W_des = [];
-flag = true;
 for i = 1:max_tries
     % Calculate desired wrench
     f_d = -kp_CoM .* error_p_CoM - kd_CoM .* error_v_CoM ...
@@ -107,15 +123,15 @@ if exitflag ~= 1
     disp("b eq")
     disp(b_eq);
     W_des_string = mat2str(W_des);
-    % error("%s", W_des_string);
+    error("%s", W_des_string);
     % warning('fallback');
     % kp = 1800 ;
     % kd = 300 ;
     % x0 = getInitialState(model);
     % q0 = x0(1:model.n) ;
     %  tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-    tau = zeros([10,1]);
-     return
+    % tau = zeros([10,1]);
+     % return
 end
 % Jacobians
 [J1f_w, J1b_w, J2f_w, J2b_w] = computeFootJacobians(s, model);
