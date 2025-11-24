@@ -18,10 +18,10 @@ params.g = 9.81;
 % params.Kd_f = 1*[sqrt(params.m*params.Kp_f(1))*2*0.8; sqrt(params.m*params.Kp_f(1))*2*0.8; sqrt(params.m*params.Kp_f(3))*2*0.2];
 
 params.Kp_f= 1000 * [1; 1; 3]; % 2100  [1; 1; 3]
-params.Kd_f = 100 * [1; 1; 2];  % 195  [1; 1; 2]
+params.Kd_f = 10 * [1; 1; 2];  % 195  [1; 1; 2]
 
-params.Kp_tau = 500 * [0.3; 0.3; 0.3]; 
-params.Kd_tau = 10 * [0.3; 0.3; 0.3];
+params.Kp_tau = 100 * [0.3; -0.3; 0.3]; 
+params.Kd_tau = 0 * [0.3; 0.3; 0.3];
 
 params.r_com_des_W = r_com_0;
 params.dr_com_des_W = [0; 0; 0];

@@ -36,7 +36,7 @@ w_pelvis = dq(4:6);
 
 f_des_W = -params.Kp_f.*(r_com_W - params.r_com_des_W) - params.Kd_f.*(v_com_W - params.dr_com_des_W) + params.m*params.g*[0; 0; 1]; % + params.m * ddr_com_d_W;
 
-error_R_pelvis = 0.5 * vee_map(params.R_pelvis_des' * R_pelvis' - R_pelvis * params.R_pelvis_des);
+error_R_pelvis = 0.5 * vee_map(params.R_pelvis_des' * R_pelvis - R_pelvis' * params.R_pelvis_des);
 error_w_pelvis = w_pelvis - params.w_pelvis_des;
 tau_des_W = params.Kp_tau .* error_R_pelvis - params.Kd_tau .* error_w_pelvis;
 
