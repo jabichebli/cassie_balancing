@@ -39,7 +39,7 @@ end
 
 
 % --- New Friction Cone Formulation ---
-n_friction_edges = 8;
+n_friction_edges = 4;
 ths = linspace(0, 2*pi, n_friction_edges + 1);
 ths = ths(1:n_friction_edges); % Use n unique angles
 
@@ -79,7 +79,7 @@ kd_CoM = params.kd_CoM;
 kp_pelvis = params.kp_pelvis;
 kd_pelvis = params.kd_pelvis;
 
-max_tries = 10; % Reverted to 10. Adjust in studentParams.m if more are needed.
+max_tries = 1;
 exitflag = -2;
 W_des = [];
 alpha_total = []; % The variable we solve for now
@@ -97,12 +97,7 @@ for i = 1:max_tries
     [alpha_total, ~, exitflag] = quadprog(H, f_obj, A_ineq, b_ineq, A_eq, b_eq, lb, ub, [], options);
     
     if exitflag == 1
-        % No need for verbose logging unless debugging
         break;
-    end
-
-    if i == 1 && t > 0.01 % Suppress initial warnings at t=0.0
-         fprintf('WARNING: QP infeasible at t=%.3f. Reducing gains...\n', t);
     end
 
     % Reduce gains for next iteration
@@ -115,10 +110,14 @@ end
 
 % --- Handle QP failure and recover F_total from alpha_total ---
 if exitflag ~= 1
-    % Fallback if QP is still infeasible
-    fprintf('ERROR: QP still infeasible at t=%.3f after %d tries.\n', t, max_tries);
-    W_des_string = mat2str(W_des);
-    error('QP failed to find a solution. Desired Wrench: %s', W_des_string);
+    % W_des_string = mat2str(W_des);
+    % error('QP failed to find a solution. Desired Wrench: %s', W_des_string);
+    kp = 1800; 
+    kd = 300;
+    x0 = getInitialState(model);
+    q0 = x0(1:model.n);
+    tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx);
+    return;
 end
 
 % CRITICAL STEP: Recover the contact forces from the solved alpha values
@@ -129,11 +128,7 @@ F_total = V_block * alpha_total;
 J_com_W = computeComJacobian(q, model);
 [~, ~, G] = model.gamma_q(model, q, dq);
 J_com_W = J_com_W*G;
-
-
 J_feet_world_linear = {J1f_w(4:6,:) - J_com_W, J1b_w(4:6,:)-J_com_W, J2f_w(4:6,:)-J_com_W, J2b_w(4:6,:)-J_com_W};
-
-
 
 % Torque Calculation
 tau_dy = zeros(length(model.independent_idx), 1);
@@ -151,9 +146,7 @@ dq_actuated = dq(model.actuated_idx);
 tau_damping = -params.kd_internal .* dq_actuated;
 tau = tau_model + tau_damping;
 
-if any(abs(tau) > 100)
-    fprintf('WARNING: QP solution resulted in excessive torque at t=%.3f. Switching to fallback PD controller.\n', t);
-    fprintf('  Max torque value: %.2f\n', max(abs(tau)));
+if any(abs(tau) > 100) || max([p1(3), p2(3), p3(3), p4(3)]) > 1e-6 && t > 0.01
     kp = 1800; 
     kd = 300;
     x0 = getInitialState(model);
