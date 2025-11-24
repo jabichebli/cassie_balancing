@@ -12,7 +12,12 @@ R_pelvis = rot_z(yaw) * rot_y(pitch) * rot_x(roll);
 w_pelvis = dq(4:6);
 
 % Params
-p_CoM_des     = params.p_CoM_des;
+if t < 1/0.5
+    t_scaled = t*0.5;
+p_CoM_des     = params.p_CoM_des - [0;0;(10*t_scaled^3-15*t_scaled^4+6*t_scaled^5)*0.2];
+else
+p_CoM_des     = params.p_CoM_des - [0;0;0.2];
+end
 v_CoM_des     = params.v_CoM_des;
 a_CoM_des     = params.a_CoM_des;
 R_pelvis_des  = params.R_pelvis_des;
