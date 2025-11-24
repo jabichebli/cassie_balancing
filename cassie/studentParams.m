@@ -11,17 +11,17 @@ params.mass = model.M;
 params.p_CoM_des    = p_CoM0;
 params.R_pelvis_des = eye(3);
 
-params.kp_CoM = 10*[1050; 2100; 6300]; % 10*[1050; 2100; 6300] -> 224 score
-params.kd_CoM = 10*[195; 195; 390];  % 10*[195; 195; 390] -> 224 score
+params.kp_CoM = 10*[1050; 2100; 6300]; % 10*[1050; 2100; 6300]
+params.kd_CoM = 10*[195; 195; 390];  % 10*[195; 195; 390]
 params.kp_pelvis = [2; 2; 2]; 
 params.kd_pelvis = [0.25; 0.25; 0.25];
 
-% params.kp_CoM = [1050; 2100; 6300]; % 2100  [1; 1; 3]
-% params.kd_CoM = [195; 195; 390];  % 195  [1; 1; 2]
-% params.kp_pelvis = [300; 300; 30]; 
-% params.kd_pelvis = [2.5; 2.5; 0.25];
+% params.kp_CoM = [1000; 1000; 1000];
+% params.kd_CoM = [100; 100; 100];
+% params.kp_pelvis = [100 100 100]';
+% params.kd_pelvis = [10 10 10]';
 
-params.kd_internal = 10.0; %kd: 200 -> score 164
+params.kd_internal = 10.0;
 
 
 % Desired velocities and accelerations
@@ -33,5 +33,6 @@ params.dw_pelvis_des = [0; 0; 0];
 % Robot properties
 params.I_pelvis = model.I{6}(1:3, 1:3);
 params.mu = 0.8;
+
 
 end
