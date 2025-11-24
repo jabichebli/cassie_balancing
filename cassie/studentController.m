@@ -39,7 +39,7 @@ end
 
 % QP setup
 A_eq = G_c;
-mu = params.mu;
+mu = params.mu / sqrt(2);
 A_foot = [ 0,  0, -1;  % -fz <= 0
     1,  0, -mu; % fx - mu*fz <= 0
     -1,  0, -mu; % -fx - mu*fz <= 0
@@ -119,6 +119,7 @@ end
 % Jacobians
 [J1f_w, J1b_w, J2f_w, J2b_w] = computeFootJacobians(s, model);
 J_feet_world_linear = {J1f_w(4:6,:), J1b_w(4:6,:), J2f_w(4:6,:), J2b_w(4:6,:)};
+
 
 % Torque Calculation
 tau_dy = zeros(length(model.independent_idx), 1);
