@@ -107,18 +107,25 @@ if exitflag ~= 1
     disp("b eq")
     disp(b_eq);
     W_des_string = mat2str(W_des);
-    error("%s", W_des_string);
+    % error("%s", W_des_string);
     % warning('fallback');
     % kp = 1800 ;
     % kd = 300 ;
     % x0 = getInitialState(model);
     % q0 = x0(1:model.n) ;
     %  tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-    %  return
+    tau = zeros([10,1]);
+     return
 end
 % Jacobians
 [J1f_w, J1b_w, J2f_w, J2b_w] = computeFootJacobians(s, model);
-J_feet_world_linear = {J1f_w(4:6,:), J1b_w(4:6,:), J2f_w(4:6,:), J2b_w(4:6,:)};
+J_com_W = computeComJacobian(q, model);
+[~, ~, G] = model.gamma_q(model, q, dq);
+J_com_W = J_com_W*G;
+
+
+J_feet_world_linear = {J1f_w(4:6,:) - J_com_W, J1b_w(4:6,:)-J_com_W, J2f_w(4:6,:)-J_com_W, J2b_w(4:6,:)-J_com_W};
+
 
 
 % Torque Calculation
