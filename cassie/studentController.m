@@ -122,16 +122,16 @@ if exitflag ~= 1
     disp(A_eq*F_total-b_eq);
     disp("b eq")
     disp(b_eq);
-    W_des_string = mat2str(W_des);
-    error("%s", W_des_string);
-    % warning('fallback');
-    % kp = 1800 ;
-    % kd = 300 ;
-    % x0 = getInitialState(model);
-    % q0 = x0(1:model.n) ;
-    %  tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
-    % tau = zeros([10,1]);
-     % return
+    % W_des_string = mat2str(W_des);
+    % error("%s", W_des_string);
+    warning('fallback');
+    kp = 1800 ;
+    kd = 300 ;
+    x0 = getInitialState(model);
+    q0 = x0(1:model.n) ;
+     tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
+    tau = zeros([10,1]);
+     return
 end
 % Jacobians
 [J1f_w, J1b_w, J2f_w, J2b_w] = computeFootJacobians(s, model);
