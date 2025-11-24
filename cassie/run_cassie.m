@@ -10,12 +10,11 @@ model = load('cassie_model.mat') ;
 % Initial configuration
 [x0, model] = getInitialState(model.model);
 
-
 % Get STUDENT Control Parameters
 params = studentParams(model);
 
 % ODE options
-time_inter = [0 1] ;
+time_inter = [0 0.6] ;
 odeopts = odeset('Events', @falldetect);
 externalForce_fun = @ExternalForce ;
 

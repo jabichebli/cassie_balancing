@@ -26,10 +26,19 @@ dq = s(model.n+1 : 2*model.n);
 % check if contact frames are equal to world frames
 
 % desired wrench
-[r_com_W, v_com_W] = computeComPosVel(q, dq, model); % position and velocity of COM in world frame
 
-f_des_W = -params.Kp_f*(r_com_W - params.r_com_des_W) - params.Kd_f*(v_com_W - params.dr_com_des_W) + params.m*params.g*[0; 0; 1]; % + params.m * ddr_com_d_W;
-tau_des_W = -params.Kp_tau*(q(4:6) - params.rot_des) - params.Kd_tau*(dq(4:6) - params.drot_des); % + params.I * ddrot_des
+[r_com_W, v_com_W] = computeComPosVel(q, dq, model); % position and velocity of COM in world frame
+yaw   = q(4);
+pitch = q(5);
+roll  = q(6);
+R_pelvis = rot_z(yaw) * rot_y(pitch) * rot_x(roll);
+w_pelvis = dq(4:6);
+
+f_des_W = -params.Kp_f.*(r_com_W - params.r_com_des_W) - params.Kd_f.*(v_com_W - params.dr_com_des_W) + params.m*params.g*[0; 0; 1]; % + params.m * ddr_com_d_W;
+
+error_R_pelvis = 0.5 * vee_map(params.R_pelvis_des' * R_pelvis' - R_pelvis * params.R_pelvis_des);
+error_w_pelvis = w_pelvis - params.w_pelvis_des;
+tau_des_W = params.Kp_tau .* error_R_pelvis - params.Kd_tau .* error_w_pelvis;
 
 F_des_W = [f_des_W; tau_des_W]; % desired wrench in world frame
 

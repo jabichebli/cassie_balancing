@@ -1,0 +1,107 @@
+function out = studentController(t, s, model, params)
+% Modify this code to calculate the joint torques
+% t - time
+% s - state of the robot
+% model - struct containing robot properties
+% params - user defined parameters in studentParams.m
+% tau - 10x1 vector of joint torques
+
+% State vector components ID
+q = s(1 : model.n);
+dq = s(model.n+1 : 2*model.n);
+
+%% [Control #1] zero control
+% tau = zeros(10,1);
+
+%% [Control #2] High Gain Joint PD control on all actuated joints
+% kp = 1800 ;
+% kd = 300 ;
+% x0 = getInitialState(model);
+% q0 = x0(1:model.n) ;
+% out = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
+
+%% Force Control
+
+%   TODO:
+% check if contact frames are equal to world frames
+
+% desired wrench
+
+[r_com_W, v_com_W] = computeComPosVel(q, dq, model); % position and velocity of COM in world frame
+yaw   = q(4);
+pitch = q(5);
+roll  = q(6);
+R_pelvis = rot_z(yaw) * rot_y(pitch) * rot_x(roll);
+w_pelvis = dq(4:6);
+
+
+f_des_W = -params.Kp_f.*(r_com_W - params.r_com_des_W) - params.Kd_f.*(v_com_W - params.dr_com_des_W) + params.m*params.g*[0; 0; 1]; % + params.m * ddr_com_d_W;
+
+error_R_pelvis = 0.5 * vee_map(R_pelvis_des' * R_pelvis - R_pelvis' * R_pelvis_des);
+error_w_pelvis = w_pelvis - w_pelvis_des;
+tau_des_W = params.Kp_tau .* error_R_pelvis - params.Kd_tau .* error_w_pelvis;
+
+F_des_W = [f_des_W; tau_des_W]; % desired wrench in world frame
+
+% Grasp Matrix
+[p_lf_W, p_lb_W, p_rf_W, p_rb_W] = computeFootPositions(q, model); % contact positions in World frame (lf: left front, rb: right back)
+
+r_com_lf_W = p_lf_W - r_com_W; % distance between COM and each contact position in world frame
+r_com_lb_W = p_lb_W - r_com_W;
+r_com_rf_W = p_rf_W - r_com_W;
+r_com_rb_W = p_rb_W - r_com_W;
+
+
+G = [eye(3), eye(3), eye(3), eye(3);
+     hat_map(r_com_lf_W), hat_map(r_com_lb_W), hat_map(r_com_rf_W), hat_map(r_com_rb_W)];
+
+% Optimization for Contact Forces 
+
+A_uni = zeros(4, 12);
+A_uni(1, 3) = -1;
+A_uni(2, 6) = -1;
+A_uni(3, 9) = -1;
+A_uni(4, 12) = -1;
+
+% A1 = [eye(3, 3), zeros(3, 3)];
+% A2 = [zeros(3, 3), eye(3, 3)];
+% alpha1 = 1;
+% alpha2 = 10e-3;
+% alpha3 = 10e-6;
+% 
+% H = 2*alpha1 * (G' * (A1' * A1) * G) ...
+%   + 2*alpha2 * (G' * (A2' * A2) * G) ...
+%   + 2*alpha3 * eye(size(G,2));
+% 
+% f = -2*alpha1 * (A1*F_des_W)' * A1 * G ...
+%   -2*alpha2 * (A2*F_des_W)' * A2 * G;
+
+H = 2*eye(length(params.f_contacts_0_W));   % Hessian
+f = zeros(size(params.f_contacts_0_W));     % Linear term
+A = A_uni;
+b = zeros(4,1);
+Aeq = G;
+beq = F_des_W;
+
+options = optimoptions('quadprog', 'Display', 'none');
+f_contacts_W = quadprog(H, f, A, b, Aeq, beq, [], [], [], options);
+f_lf_W = f_contacts_W(1:3); f_lb_W = f_contacts_W(4:6); f_rf_W = f_contacts_W(7:9); f_rb_W = f_contacts_W(10:12);
+
+
+
+[J_lf, J_lb, J_rf, J_rb] = computeFootJacobians(s,model);
+
+J_com = computeComJacobian(q, model);
+[~, ~, G] = model.gamma_q(model, q, dq) ;
+J_com = J_com*G;
+
+J_lf = J_lf(4:6, :) - J_com;
+J_lb = J_lb(4:6, :) - J_com;
+J_rf = J_rf(4:6, :) - J_com;
+J_rb = J_rb(4:6, :) - J_com;
+
+temp = -J_lf'*f_contacts_W(1:3) - J_lb'*f_contacts_W(4:6) - J_rf'*f_contacts_W(7:9) - J_rb'*f_contacts_W(10:12);
+
+out = temp(7:16);
+
+end
