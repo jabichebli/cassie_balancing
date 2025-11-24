@@ -59,22 +59,27 @@ b_ineq = zeros(size(A_ineq, 1), 1);
 % Solve QP
 H = 2 * eye(contact_forces_dim);
 f_obj = zeros(contact_forces_dim, 1);
-options = optimoptions('quadprog', 'Display', 'none');
+options = optimoptions('quadprog', 'Display', 'none', 'MaxIter', 1000);
 [F_total, ~, exitflag] = quadprog(H, f_obj, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
 
 if exitflag ~= 1
-    error('QP for force distribution became infeasible with exitflag %d. Halting.', exitflag);
+    W_des_string = mat2str(W_des);
+    warning('QP infeasible (exitflag %d at t=%f) W_des = %s', exitflag, t, W_des_string);
+    kp = 1800 ; 
+    kd = 300 ;
+    x0 = getInitialState(model);
+    q0 = x0(1:model.n) ;
+     tau = -kp*(q(model.actuated_idx)-q0(model.actuated_idx)) - kd*dq(model.actuated_idx) ;
+     return
 end
 
-% computeFootJacobians returns Jacobians in the world frame.
-% The linear velocity portion is in rows 4-6.
+% Jacobians
 [J1f_w, J1b_w, J2f_w, J2b_w] = computeFootJacobians(s, model);
 J_feet_world_linear = {J1f_w(4:6,:), J1b_w(4:6,:), J2f_w(4:6,:), J2b_w(4:6,:)};
 
 % Torque Calculation
 tau_dy = zeros(length(model.independent_idx), 1);
 for i = 1:num_contacts
-    % Both Jacobian and force are in the world frame, so we can multiply directly.
     f_i_world = F_total((i-1)*3+1 : i*3);
     J_i_world_linear = J_feet_world_linear{i};
     tau_dy = tau_dy + J_i_world_linear' * f_i_world;
