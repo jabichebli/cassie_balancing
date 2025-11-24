@@ -25,13 +25,6 @@ error_v_CoM = v_CoM - v_CoM_des;
 error_R_pelvis = 0.5 * vee_map(R_pelvis_des' * R_pelvis - R_pelvis' * R_pelvis_des);
 error_w_pelvis = w_pelvis - w_pelvis_des;
 
-% Calculate desired wrench
-f_d = -params.kp_CoM .* error_p_CoM - params.kd_CoM .* error_v_CoM ...
-    + [0; 0; params.mass * 9.81] + params.mass * a_CoM_des;
-tau_d = -params.kp_pelvis .* error_R_pelvis - params.kd_pelvis .* error_w_pelvis ...
-    + params.I_pelvis * dw_pelvis_des;
-W_des = [f_d; tau_d];
-
 % Grasp matrix
 [p1, p2, p3, p4] = computeFootPositions(q, model);
 p_feet = {p1, p2, p3, p4};
@@ -44,9 +37,8 @@ for i = 1:num_contacts
     G_c(4:6, (i-1)*3+1:i*3) = hat_map(p_foot_relative);
 end
 
-% Set up QP
+% QP setup (the parts that don't change)
 A_eq = G_c;
-b_eq = W_des;
 mu = params.mu;
 A_foot = [ 0,  0, -1;  % -fz <= 0
     1,  0, -mu; % fx - mu*fz <= 0
@@ -55,16 +47,50 @@ A_foot = [ 0,  0, -1;  % -fz <= 0
     0, -1, -mu];% -fy - mu*fz <= 0
 A_ineq = kron(eye(num_contacts), A_foot);
 b_ineq = zeros(size(A_ineq, 1), 1);
-
-% Solve QP
 H = 2 * eye(contact_forces_dim);
 f_obj = zeros(contact_forces_dim, 1);
 options = optimoptions('quadprog', 'Display', 'none', 'MaxIter', 1000);
-[F_total, ~, exitflag] = quadprog(H, f_obj, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
+
+% Iteratively solve QP, reducing PD gains if infeasible
+kp_CoM = params.kp_CoM;
+kd_CoM = params.kd_CoM;
+kp_pelvis = params.kp_pelvis;
+kd_pelvis = params.kd_pelvis;
+
+max_tries = 5;
+exitflag = -2; % Initialize to a failure code
+W_des = [];
+
+for i = 1:max_tries
+    % Calculate desired wrench
+    f_d = -kp_CoM .* error_p_CoM - kd_CoM .* error_v_CoM ...
+        + [0; 0; params.mass * 9.81] + params.mass * a_CoM_des;
+    tau_d = -kp_pelvis .* error_R_pelvis - kd_pelvis .* error_w_pelvis ...
+        + params.I_pelvis * dw_pelvis_des;
+    W_des = [f_d; tau_d];
+    b_eq = W_des;
+
+    % Solve QP
+    [F_total, ~, exitflag] = quadprog(H, f_obj, A_ineq, b_ineq, A_eq, b_eq, [], [], [], options);
+    
+    if exitflag == 1
+        % Feasible solution found
+        break;
+    end
+    
+    % If not feasible, reduce gains for next iteration
+    W_des_string = mat2str(W_des);
+    warning('t = %f - lowering gains %i - W_des = %s', t, i, W_des_string);
+
+    kp_CoM = kp_CoM * 0.8;
+    kd_CoM = kd_CoM * 0.8;
+    kp_pelvis = kp_pelvis * 0.8;
+    kd_pelvis = kd_pelvis * 0.8;
+end
 
 if exitflag ~= 1
     W_des_string = mat2str(W_des);
-    warning('QP infeasible (exitflag %d at t=%f) W_des = %s', exitflag, t, W_des_string);
+    warning('QP infeasible (exitflag %d at t=%f) after %d tries. W_des = %s', exitflag, t, max_tries, W_des_string);
     kp = 1800 ; 
     kd = 300 ;
     x0 = getInitialState(model);

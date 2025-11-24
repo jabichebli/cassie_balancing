@@ -11,29 +11,16 @@ params.mass = model.M;
 params.p_CoM_des    = p_CoM0;
 params.R_pelvis_des = eye(3);
 
-% PD for CoM ------> 54.5828
 params.kp_CoM = 2100 * [0.5; 1; 3]; % 2100  [1; 1; 3]
+params.kd_CoM = 195 * [1; 1; 2];  % 195  [1; 1; 2]
+params.kp_pelvis = 1000 * [1; 1; 0.1]; 
+params.kd_pelvis = 0.2 * [1; 1; 1];
+
 % params.kp_CoM = [1000; 1000; 1000];
 % params.kd_CoM = [100; 100; 100];
-% params.kp_pelvis = [10 10 10]';
-% params.kd_pelvis = [0.1 0.1 0.1]';
-% OLD
-params.kd_CoM = 195 * [1; 1; 2];  % 195  [1; 1; 2]
+% params.kp_pelvis = [100 100 100]';
+% params.kd_pelvis = [10 10 10]';
 
-% NEW
-% params.kd_CoM = 250 * [1; 1; 2];  % 195  [1; 1; 2]
-
-
-% PD for Orientation
-% Old
-params.kp_pelvis = 1000 * [1; 1; 1]; %1000
-params.kd_pelvis = 0.2 * [1; 1; 1];  %0.2s
-
-% NEW
-% params.kp_pelvis = 1000 * [1; 1; 0.1]; 
-% params.kd_pelvis = 0.2 * [1; 1; 1];
-
-% NEW: Internal joint damping to stop knee/hip jitter
 params.kd_internal = 5.0;
 
 
